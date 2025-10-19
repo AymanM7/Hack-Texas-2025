@@ -123,6 +123,89 @@ def format_lap_data_for_prompt(lap_summary: list) -> str:
     return "\n".join(lines[:10])  # Show first 10 laps for context
 
 
+def analyze_single_lap(driver_number: str, driver_name: str, lap_df: pd.DataFrame, lap_number: int) -> dict:
+    """
+    Analyze a specific lap at runtime.
+
+    Args:
+        driver_number (str): Driver number
+        driver_name (str): Driver name/acronym
+        lap_df (pd.DataFrame): All lap data for the driver
+        lap_number (int): Specific lap to analyze
+
+    Returns:
+        dict: Contains lap analysis or error message
+    """
+    if not GEMINI_API_KEY:
+        return {
+            "error": "⚠️ Gemini API key not configured",
+            "analysis": None
+        }
+
+    # Filter for specific lap
+    lap_row = lap_df[lap_df["lap_number"] == lap_number]
+    if lap_row.empty:
+        return {
+            "error": f"Lap {lap_number} not found",
+            "analysis": None
+        }
+
+    lap_data = lap_row.iloc[0]
+
+    try:
+        model = genai.GenerativeModel("gemini-2.5-flash")
+
+        # Format lap data
+        lap_time_str = format_lap_time_for_analysis(lap_data["lap_duration"])
+        pit_flag = " [PIT OUT-LAP]" if lap_data.get("is_pit_out_lap") else ""
+
+        # Build context with all laps for reference
+        all_laps_summary = []
+        for _, row in lap_df.iterrows():
+            all_laps_summary.append({
+                "lap_number": int(row["lap_number"]),
+                "lap_duration": float(row["lap_duration"]),
+                "is_pit_out_lap": bool(row.get("is_pit_out_lap", False)),
+                "lap_time_str": format_lap_time_for_analysis(row["lap_duration"]),
+            })
+
+        lap_data_text = format_lap_data_for_prompt(all_laps_summary)
+
+        context = f"""
+Driver: {driver_name} (#{driver_number})
+Total Laps: {len(all_laps_summary)}
+
+Lap Data (for reference):
+{lap_data_text}
+"""
+
+        prompt = f"""{context}
+
+Analyze lap {lap_number} for {driver_name}:
+- Lap Time: {lap_time_str}{pit_flag}
+- Position in race: Lap {lap_number} of {len(all_laps_summary)}
+
+Detailed analysis (3-4 sentences) of what happened this lap, including:
+- Performance compared to average
+- Notable issues or strengths
+- Impact on race strategy"""
+
+        response = model.generate_content(prompt)
+
+        return {
+            "error": None,
+            "analysis": response.text,
+            "lap_time": lap_time_str,
+            "lap_number": lap_number
+        }
+
+    except Exception as e:
+        return {
+            "error": f"Analysis failed: {str(e)}",
+            "analysis": None
+        }
+
+
 def create_timestamp_link(lap_number: int, session_key: str) -> str:
     """
     Create a reference for jumping to a specific lap in simulation.
