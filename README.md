@@ -5,15 +5,17 @@ Welcome to this tutorial, where you'll learn to build an interactive Formula 1 s
 ## 📊 Overview
 
 This dashboard enables users to:
-- Select a race by year and country
+- Select a race by year and country (defaults to 2025 Austin F1 race)
 - View lap times per driver with pit stop flags
 - Analyze tire strategy over the race distance
 - Compare pit stop durations
+- **🤖 AI-Powered Lap Analysis**: Get Gemini AI insights on driver performance, lap strategy, and race events
 
 ### Technologies used:
-- **OpenF1 API** for motorsport telemetry data  
-- **Pandas** for data handling  
-- **Plotly** for interactive charts  
+- **OpenF1 API** for motorsport telemetry data
+- **Google Gemini 2.5** for AI-powered lap analysis
+- **Pandas** for data handling
+- **Plotly** for interactive charts
 - **Streamlit** for web UI  
 
 ---
@@ -21,14 +23,17 @@ This dashboard enables users to:
 ## 📁 Project Structure
 
 ```
-openf1-dashboard-tutorial/
+F1/
 ├── app/
 │   ├── data_loader.py        # Handles OpenF1 API requests
 │   ├── data_processor.py     # Cleans and enriches OpenF1 data
-│   └── visualizer.py         # Builds interactive visualizations from OpenF1 data
-├── main.py                   # Streamlit app logic
+│   ├── visualizer.py         # Builds interactive visualizations from OpenF1 data
+│   └── lap_analyzer.py       # AI-powered lap analysis with Gemini
+├── main.py                   # Streamlit app entry point
 ├── requirements.txt          # Python dependencies
-└── .env                      # Contains BASE_API_URL for OpenF1
+├── .env                      # Contains BASE_API_URL and GEMINI_API_KEY
+├── CLAUDE.md                 # Architecture documentation
+└── GEMINI_SETUP.md          # Gemini API configuration guide
 ```
 
 ---
@@ -41,31 +46,45 @@ openf1-dashboard-tutorial/
 
 ## 🛠️ Setup & Requirements
 
-### 1. Create and activate a virtual environment
+### 1. Clone and navigate to project
 ```bash
-python -m venv venv
+git clone https://github.com/Garyxue213/F1.git
+cd F1
+```
+
+### 2. Create and activate a virtual environment
+```bash
+python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-### 2. Install dependencies
+### 3. Install all dependencies from requirements.txt
 ```bash
-pip install streamlit pandas plotly python-dotenv
+pip install -r requirements.txt
 ```
 
-### 3. Create a `.env` file
+### 4. Create a `.env` file in the project root
 ```
 BASE_API_URL=https://api.openf1.org/v1/
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
+
+**Note:** Get your free Gemini API key at [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
 
 ---
 
 ## 🚀 Launch the App
 
 ```bash
-streamlit run main.py
+streamlit run main.py --server.port 3000
 ```
 
-This will open the dashboard in your default browser.
+Then open your browser and go to:
+```
+http://localhost:3000
+```
+
+The dashboard will open with the 2025 Austin F1 race pre-selected. Scroll down to the **"🤖 Simulation Visualizer"** section to see AI-powered lap analysis!
 
 ---
 
