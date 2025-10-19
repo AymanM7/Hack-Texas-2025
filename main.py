@@ -56,7 +56,7 @@ def get_base64_audio(audio_path):
 # F1-Themed CSS
 banner_base64 = get_base64_image("qqvtKbFoWb54LN_XI4j-Q2g0oae0kRKfZ6hy84QatI8.jpg.jpg")
 verstappen_base64 = get_base64_image("max-emilian-verstappen-stubble-removebg-preview.png")
-verstappen_audio_base64 = get_base64_audio("tu-tu-tu-du-max-verstappen.mp3")
+verstappen_audio_base64 = get_base64_audio("du-du-du-du-max-verstappen-made-with-Voicemod.mp3")
 
 st.markdown(f"""
 <style>
