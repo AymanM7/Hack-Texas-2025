@@ -26,7 +26,9 @@ from app.race_predictor import (
     fetch_historical_austin_races,
     build_perfect_lap_profile,
     generate_simulated_race,
-    calculate_race_positions
+    calculate_race_positions,
+    predict_podium,
+    get_tire_strategy_summary
 )
 from app.race_simulator import (
     create_race_visualization,
@@ -280,6 +282,50 @@ with st.expander(f"🎮 Race Predictor - Simulated Race for {selected_country} {
                         selected_drivers_sim
                     )
                     st.plotly_chart(telemetry_fig, use_container_width=True)
+
+                    # Podium Prediction
+                    st.markdown("---")
+                    st.markdown("### 🏆 Final Podium Prediction")
+                    driver_map = {}
+                    try:
+                        for year, race_data in historical_races.items():
+                            drivers_df = fetch_drivers(race_data["session_key"])
+                            for _, driver_row in drivers_df.iterrows():
+                                driver_num = str(int(driver_row["driver_number"]))
+                                if driver_num not in driver_map:
+                                    driver_map[driver_num] = {
+                                        "name": driver_row.get("name_acronym", f"DRV{driver_num}"),
+                                        "team": driver_row.get("team_name", "Unknown"),
+                                    }
+                    except:
+                        pass
+
+                    podium_df = predict_podium(simulated_df, driver_map)
+                    if not podium_df.empty:
+                        col1, col2, col3 = st.columns([1, 1, 1])
+                        for idx, (col, row) in enumerate(zip([col1, col2, col3], podium_df.iterrows())):
+                            with col:
+                                row_data = row[1]
+                                st.markdown(f"<div style='text-align: center'><h3>{row_data['Position']}</h3></div>", unsafe_allow_html=True)
+                                st.metric("Driver", f"{row_data['Driver']} #{row_data['Driver #']}")
+                                st.metric("Team", row_data['Team'])
+                                st.metric("Best Lap", row_data['Best Lap'])
+
+                    # Tire Strategy from historical data
+                    st.markdown("---")
+                    st.markdown("### 🛞 Tire Strategy Analysis (Historical)")
+                    tire_strategy = get_tire_strategy_summary(historical_races, selected_drivers_sim)
+                    if tire_strategy:
+                        strategy_data = []
+                        for driver_num, compounds in tire_strategy.items():
+                            compound_str = ", ".join([f"{comp}: {count} laps" for comp, count in sorted(compounds.items())])
+                            driver_name = driver_map.get(driver_num, {}).get("name", f"DRV{driver_num}")
+                            strategy_data.append({"Driver": f"{driver_name} #{driver_num}", "Tire Strategy": compound_str})
+
+                        if strategy_data:
+                            strategy_df = pd.DataFrame(strategy_data)
+                            st.dataframe(strategy_df, hide_index=True, use_container_width=True)
+
                 else:
                     st.info("Select at least one driver to visualize the race.")
             else:

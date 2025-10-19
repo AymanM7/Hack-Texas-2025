@@ -17,9 +17,19 @@ def fetch_historical_austin_races(years=[2022, 2023, 2024, 2025]):
             # Fetch meetings for the year
             meetings = fetch_data("meetings", {"year": year})
 
-            # Find Austin race (USA)
-            austin = meetings[meetings["country_name"] == "USA"]
-            if austin.empty:
+            if meetings.empty:
+                continue
+
+            # Find Austin race - check various possible field names
+            austin = None
+            if "country_name" in meetings.columns:
+                austin = meetings[meetings["country_name"] == "USA"]
+            elif "country" in meetings.columns:
+                austin = meetings[meetings["country"] == "USA"]
+            elif "location" in meetings.columns:
+                austin = meetings[meetings["location"].str.contains("Austin", case=False, na=False)]
+
+            if austin is None or austin.empty:
                 continue
 
             meeting_key = austin.iloc[0]["meeting_key"]
@@ -35,13 +45,13 @@ def fetch_historical_austin_races(years=[2022, 2023, 2024, 2025]):
 
             # Fetch lap data
             laps = fetch_laps(session_key)
-            austin_races[year] = {
-                "laps": laps,
-                "session_key": session_key,
-                "meeting_key": meeting_key
-            }
+            if not laps.empty:
+                austin_races[year] = {
+                    "laps": laps,
+                    "session_key": session_key,
+                    "meeting_key": meeting_key
+                }
         except Exception as e:
-            st.warning(f"Could not fetch {year} Austin race: {str(e)}")
             continue
 
     return austin_races
@@ -152,6 +162,69 @@ def get_driver_names(session_key):
         return driver_map
     except:
         return {}
+
+
+def predict_podium(simulated_df, driver_names):
+    """
+    Predict final podium based on simulated race.
+    Returns DataFrame with top 3 finishers and stats.
+    """
+    if simulated_df.empty:
+        return pd.DataFrame()
+
+    # Get final race positions (last lap)
+    final_lap = simulated_df["lap_number"].max()
+    final_results = simulated_df[simulated_df["lap_number"] == final_lap].copy()
+    final_results = final_results.sort_values("lap_duration")
+
+    # Get top 3
+    podium = []
+    for idx, (position, (_, row)) in enumerate(zip(range(1, 4), final_results.head(3).iterrows()), 1):
+        driver_num = str(row["driver_number"])
+        driver_info = driver_names.get(driver_num, {})
+        best_lap = simulated_df[simulated_df["driver_number"] == driver_num]["lap_duration"].min()
+
+        podium.append({
+            "Position": f"🥇 P{idx}" if idx == 1 else f"🥈 P{idx}" if idx == 2 else f"🥉 P{idx}",
+            "Driver #": driver_num,
+            "Driver": driver_info.get("name", f"DRV{driver_num}"),
+            "Team": driver_info.get("team", "Unknown"),
+            "Best Lap": f"{best_lap:.3f}s",
+            "Final Lap Time": f"{row['lap_duration']:.3f}s"
+        })
+
+    return pd.DataFrame(podium)
+
+
+def get_tire_strategy_summary(historical_races, selected_drivers=None):
+    """
+    Get tire strategy summary from historical races.
+    Returns dict with tire compound usage per driver.
+    """
+    strategy = {}
+
+    for year, race_data in historical_races.items():
+        laps_df = race_data["laps"]
+
+        if "compound" not in laps_df.columns:
+            continue
+
+        for driver_num in laps_df["driver_number"].unique():
+            if selected_drivers and str(driver_num) not in selected_drivers:
+                continue
+
+            driver_laps = laps_df[laps_df["driver_number"] == driver_num]
+            compounds = driver_laps["compound"].value_counts()
+
+            if str(driver_num) not in strategy:
+                strategy[str(driver_num)] = {}
+
+            for compound, count in compounds.items():
+                if compound not in strategy[str(driver_num)]:
+                    strategy[str(driver_num)][compound] = 0
+                strategy[str(driver_num)][compound] += count
+
+    return strategy
 
 
 def calculate_race_positions(simulated_df):
