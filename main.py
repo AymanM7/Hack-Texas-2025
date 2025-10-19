@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import os
+import base64
 from dotenv import load_dotenv
 from app.data_loader import (
     fetch_data,
@@ -39,9 +40,237 @@ from app.race_simulator import (
     create_speed_telemetry
 )
 
-st.set_page_config(page_title="F1 Strategy Dashboard", layout="wide")
+st.set_page_config(page_title="F1 Strategy Dashboard", layout="wide", initial_sidebar_state="collapsed")
 
 load_dotenv()
+
+# Helper function to convert image to base64
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+
+# F1-Themed CSS
+banner_base64 = get_base64_image("qqvtKbFoWb54LN_XI4j-Q2g0oae0kRKfZ6hy84QatI8.jpg.jpg")
+verstappen_base64 = get_base64_image("max-emilian-verstappen-stubble-removebg-preview.png")
+
+st.markdown(f"""
+<style>
+    /* F1 Color Scheme */
+    :root {{
+        --f1-red: #E10600;
+        --f1-black: #15151E;
+        --f1-white: #FFFFFF;
+        --f1-gold: #FFC500;
+        --f1-silver: #C0C0C0;
+    }}
+
+    /* Main App Background */
+    .stApp {{
+        background: linear-gradient(135deg, #15151E 0%, #2d2d3d 100%);
+        color: #FFFFFF;
+    }}
+
+    /* Banner at top */
+    .f1-banner {{
+        width: 100%;
+        height: 250px;
+        background-image: url('data:image/jpeg;base64,{banner_base64}');
+        background-size: cover;
+        background-position: center;
+        border-bottom: 5px solid #E10600;
+        margin-bottom: 20px;
+        box-shadow: 0 5px 20px rgba(225, 6, 0, 0.5);
+    }}
+
+    /* Verstappen decorative images */
+    .verstappen-corner-top {{
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        width: 120px;
+        height: 120px;
+        background-image: url('data:image/png;base64,{verstappen_base64}');
+        background-size: contain;
+        background-repeat: no-repeat;
+        z-index: 999;
+        opacity: 0.15;
+        animation: float 6s ease-in-out infinite;
+    }}
+
+    .verstappen-corner-bottom {{
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        width: 150px;
+        height: 150px;
+        background-image: url('data:image/png;base64,{verstappen_base64}');
+        background-size: contain;
+        background-repeat: no-repeat;
+        z-index: 999;
+        opacity: 0.12;
+        transform: scaleX(-1);
+        animation: float 8s ease-in-out infinite;
+    }}
+
+    @keyframes float {{
+        0%, 100% {{ transform: translateY(0px); }}
+        50% {{ transform: translateY(-20px); }}
+    }}
+
+    /* Title styling */
+    h1 {{
+        color: #E10600 !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        font-weight: 900 !important;
+        font-family: 'Arial Black', sans-serif !important;
+    }}
+
+    h2, h3 {{
+        color: #FFC500 !important;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    }}
+
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 10px;
+        background-color: #15151E;
+        border-bottom: 3px solid #E10600;
+    }}
+
+    .stTabs [data-baseweb="tab"] {{
+        background-color: #2d2d3d;
+        color: #FFFFFF;
+        border-radius: 10px 10px 0 0;
+        padding: 15px 30px;
+        font-weight: bold;
+        border: 2px solid #E10600;
+    }}
+
+    .stTabs [aria-selected="true"] {{
+        background: linear-gradient(135deg, #E10600 0%, #c40500 100%);
+        color: #FFFFFF;
+    }}
+
+    /* Expanders */
+    .streamlit-expanderHeader {{
+        background: linear-gradient(90deg, #E10600 0%, #2d2d3d 100%) !important;
+        color: #FFFFFF !important;
+        border-radius: 8px;
+        font-weight: bold;
+        border: 2px solid #FFC500;
+    }}
+
+    /* Buttons */
+    .stButton > button {{
+        background: linear-gradient(135deg, #E10600 0%, #c40500 100%);
+        color: #FFFFFF;
+        border: 2px solid #FFC500;
+        border-radius: 25px;
+        font-weight: bold;
+        padding: 10px 30px;
+        transition: all 0.3s ease;
+    }}
+
+    .stButton > button:hover {{
+        background: linear-gradient(135deg, #FFC500 0%, #E10600 100%);
+        transform: scale(1.05);
+        box-shadow: 0 5px 15px rgba(225, 6, 0, 0.5);
+    }}
+
+    /* Select boxes */
+    .stSelectbox > div > div {{
+        background-color: #2d2d3d;
+        color: #FFFFFF;
+        border: 2px solid #E10600;
+        border-radius: 8px;
+    }}
+
+    /* Metrics */
+    [data-testid="stMetricValue"] {{
+        color: #FFC500 !important;
+        font-size: 28px !important;
+        font-weight: bold !important;
+    }}
+
+    [data-testid="stMetricLabel"] {{
+        color: #FFFFFF !important;
+    }}
+
+    /* Info boxes */
+    .stInfo {{
+        background-color: rgba(45, 45, 61, 0.8);
+        border-left: 5px solid #FFC500;
+        color: #FFFFFF;
+    }}
+
+    /* Checkered flag pattern overlay */
+    .checkered-overlay {{
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image:
+            repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(255, 255, 255, 0.01) 10px,
+                rgba(255, 255, 255, 0.01) 20px
+            );
+        pointer-events: none;
+        z-index: -1;
+    }}
+
+    /* Welcome page specific */
+    .welcome-container {{
+        text-align: center;
+        padding: 50px 20px;
+        background: rgba(21, 21, 30, 0.95);
+        border-radius: 20px;
+        border: 3px solid #E10600;
+        box-shadow: 0 10px 40px rgba(225, 6, 0, 0.3);
+        margin: 50px auto;
+        max-width: 800px;
+    }}
+
+    .welcome-title {{
+        font-size: 60px;
+        color: #E10600;
+        text-shadow: 3px 3px 6px rgba(0,0,0,0.9);
+        margin-bottom: 20px;
+        font-weight: 900;
+        animation: pulse 2s ease-in-out infinite;
+    }}
+
+    @keyframes pulse {{
+        0%, 100% {{ transform: scale(1); }}
+        50% {{ transform: scale(1.05); }}
+    }}
+
+    .welcome-subtitle {{
+        font-size: 24px;
+        color: #FFC500;
+        margin-bottom: 30px;
+    }}
+
+    .welcome-verstappen {{
+        width: 300px;
+        margin: 30px auto;
+        animation: bounce 2s ease-in-out infinite;
+    }}
+
+    @keyframes bounce {{
+        0%, 100% {{ transform: translateY(0); }}
+        50% {{ transform: translateY(-15px); }}
+    }}
+</style>
+
+<!-- Verstappen decorative elements -->
+<div class="verstappen-corner-top"></div>
+<div class="verstappen-corner-bottom"></div>
+<div class="checkered-overlay"></div>
+""", unsafe_allow_html=True)
 
 # ElevenLabs TTS Configuration
 ELEVENLABS_API_KEY = "378360509e31179f09b7aff18b43842842bb5246814f05cf87fc56a12f939dfa"
@@ -76,6 +305,38 @@ def generate_tts_audio(text: str):
     except Exception as e:
         st.error(f"Error generating audio: {str(e)}")
         return None
+
+# Initialize session state for welcome page
+if "entered" not in st.session_state:
+    st.session_state.entered = False
+
+# Welcome Page
+if not st.session_state.entered:
+    st.markdown(f"""
+    <div class="welcome-container">
+        <div class="welcome-title">🏎️ FORMULA 1</div>
+        <div class="welcome-subtitle">STRATEGY DASHBOARD</div>
+        <img src="data:image/png;base64,{verstappen_base64}" class="welcome-verstappen">
+        <p style="font-size: 18px; color: #C0C0C0; margin: 20px 0;">
+            Experience real-time race analytics, AI-powered insights, and interactive race animation.
+        </p>
+        <p style="font-size: 16px; color: #FFC500; margin-bottom: 30px;">
+            🏁 Lap Times • 🛞 Tire Strategy • ⏱️ Pit Stops • 🤖 AI Analysis • 🎬 Race Animator
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Center the button
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("🏁 ENTER DASHBOARD", key="enter_btn", use_container_width=True):
+            st.session_state.entered = True
+            st.rerun()
+
+    st.stop()
+
+# Banner at top of main dashboard
+st.markdown('<div class="f1-banner"></div>', unsafe_allow_html=True)
 
 st.title("🏎️ Formula 1 Strategy Dashboard")
 
