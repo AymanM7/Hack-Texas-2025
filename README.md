@@ -57,123 +57,84 @@ uvicorn api_server:app --reload --port 8000
 
 streamlit run main.py --server.port 3000
 
-- ## Dashboard Sections
 
-Analysis Tab
-Session Selection
+---
 
-Year picker (2020-2025)
+### 📊 Dashboard Sections
 
-Country/Grand Prix selector
+### Analysis Tab
 
-Session type filter (Practice, Qualifying, Race)
+#### Session Selection
+- Year picker (**2020-2025**)
+- Country/Grand Prix selector
+- Session type filter (Practice, Qualifying, Race)
 
-Lap Time Chart
+#### Lap Time Chart
+- Color-coded by driver/team
+- Pit out-laps marked with 🔧 icon
+- Hover for detailed lap information
+- Dynamic MM:SS time formatting
 
-Color-coded by driver/team
+#### Tire Strategy
+- Stint-by-stint tire compound visualization
+- Standard F1 color coding:
+    - **SOFT (red)**, **MEDIUM (yellow)**, **HARD (white)**
+    - **INTERMEDIATE (green)**, **WET (blue)**
+- Lap range display per stint
 
-Pit out-laps marked with 🔧 icon
+#### Pit Stop Analysis
+- Grouped bar chart comparison
+- Duration in seconds
+- Chronologically sorted
 
-Hover for detailed lap information
+#### AI Lap Analysis
+- Select any driver from the session
+- Choose specific lap or comprehensive report
+- **Gemini-powered insights** including:
+    - Performance analysis
+    - Pit stop strategy evaluation
+    - Sector-by-sector breakdown
+    - Race context and positioning
 
-Dynamic MM:SS time formatting
+### Race Animator Tab
+- Embedded interactive race visualization
+- **Real-time position tracking**
+- FastF1 telemetry integration
+- Supports **2024 season sessions**
 
-Tire Strategy
+---
 
-Stint-by-stint tire compound visualization
+## 🔧 API Endpoints
 
-Standard F1 color coding:
+The **FastAPI server** (`api_server.py`) provides:
 
-SOFT (red), MEDIUM (yellow), HARD (white)
+### Session Data
+- `GET /api/sessions/{year}/{country}` - Get available sessions
+- `GET /api/animation-sessions` - List animator-compatible sessions
 
-INTERMEDIATE (green), WET (blue)
+### Telemetry
+- `GET /api/animation-telemetry/{session_key}` - **FastF1 telemetry data**
+    - Cached responses for performance
+    - Automatic cache warming for popular races
+    - **Affine coordinate transformation** for accurate rendering
 
-Lap range display per stint
+### Simulation
+- `POST /api/race-simulator/{session_key}` - Race simulation and prediction
 
-Pit Stop Analysis
+### Health
+- `GET /api/health` - Server status check
 
-Grouped bar chart comparison
+---
 
-Duration in seconds
+## 🎯 Key Features Explained
 
-Chronologically sorted
+### Data Caching Strategy
+- **OpenF1 API calls**: Cached at loader level with `@st.cache_data`
+- **FastF1 telemetry**: Server-side caching with automatic warm-up
+- **Gemini AI analysis**: Cached per driver/session to minimize API costs
 
-AI Lap Analysis
+### Coordinate Transformation
+Race Animator uses **affine transformation** to map FastF1 coordinates to visualization space:
 
-Select any driver from the session
-
-Choose specific lap or comprehensive report
-
-Gemini-powered insights including:
-
-Performance analysis
-
-Pit stop strategy evaluation
-
-Sector-by-sector breakdown
-
-Race context and positioning
-
-Race Animator Tab
-Embedded interactive race visualization
-
-Real-time position tracking
-
-FastF1 telemetry integration
-
-Supports 2024 season sessions
-
-🔧 API Endpoints
-The FastAPI server (api_server.py) provides:
-
-Session Data
-GET /api/sessions/{year}/{country} - Get available sessions
-
-GET /api/animation-sessions - List animator-compatible sessions
-
-Telemetry
-GET /api/animation-telemetry/{session_key} - FastF1 telemetry data
-
-Cached responses for performance
-
-Automatic cache warming for popular races
-
-Affine coordinate transformation for accurate rendering
-
-Simulation
-POST /api/race-simulator/{session_key} - Race simulation and prediction
-
-Health
-GET /api/health - Server status check
-
-🎯 Key Features Explained
-Data Caching Strategy
-OpenF1 API calls: Cached at loader level with @st.cache_data
-
-FastF1 telemetry: Server-side caching with automatic warm-up
-
-Gemini AI analysis: Cached per driver/session to minimize API costs
-
-Coordinate Transformation
-Race Animator uses affine transformation to map FastF1 coordinates to visualization space:
-
-Python
-
+```python
 viz_coord = viz_min + (raw_coord - raw_min) / raw_range * viz_range
-This ensures accurate track representation across different circuits.
-
-AI Analysis Format
-Gemini receives structured context including:
-
-Lap times and sector splits
-
-Tire compound and age
-
-Pit stop data
-
-Track position and gaps
-
-Weather conditions
-
-Responses include clickable timestamps in format session_key:lap_number for simulation navigation.
-
