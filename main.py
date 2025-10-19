@@ -82,9 +82,6 @@ with col2:
     selected_session_key = sessions.loc[sessions["label"] == selected_session, "session_key"].values[0]
 
 st.markdown(f"### 🏁 Session Overview: `{selected_session}`")
-with st.expander("📋 Session Details", expanded=False):
-    st.write(f"**Meeting Key:** {selected_meeting_key}")
-    st.write(f"**Session Key:** {selected_session_key}")
 
 # Fetch and preprocess driver info
 driver_df = fetch_drivers(selected_session_key)
