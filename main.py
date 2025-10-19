@@ -49,9 +49,14 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
+def get_base64_audio(audio_path):
+    with open(audio_path, "rb") as audio_file:
+        return base64.b64encode(audio_file.read()).decode()
+
 # F1-Themed CSS
 banner_base64 = get_base64_image("qqvtKbFoWb54LN_XI4j-Q2g0oae0kRKfZ6hy84QatI8.jpg.jpg")
 verstappen_base64 = get_base64_image("max-emilian-verstappen-stubble-removebg-preview.png")
+verstappen_audio_base64 = get_base64_audio("tu-tu-tu-du-max-verstappen.mp3")
 
 st.markdown(f"""
 <style>
@@ -314,7 +319,7 @@ if "entered" not in st.session_state:
 if not st.session_state.entered:
     st.markdown(f"""
     <div class="welcome-container">
-        <div class="welcome-title">🏎️ FORMULA 1</div>
+        <div class="welcome-title">🏎️ dudududumaxverstappen</div>
         <div class="welcome-subtitle">STRATEGY DASHBOARD</div>
         <img src="data:image/png;base64,{verstappen_base64}" class="welcome-verstappen">
         <p style="font-size: 18px; color: #C0C0C0; margin: 20px 0;">
@@ -331,9 +336,19 @@ if not st.session_state.entered:
     with col2:
         if st.button("🏁 ENTER DASHBOARD", key="enter_btn", use_container_width=True):
             st.session_state.entered = True
+            st.session_state.play_sound = True
             st.rerun()
 
     st.stop()
+
+# Play Max Verstappen sound on entry
+if st.session_state.get("play_sound", False):
+    st.markdown(f"""
+    <audio autoplay>
+        <source src="data:audio/mp3;base64,{verstappen_audio_base64}" type="audio/mp3">
+    </audio>
+    """, unsafe_allow_html=True)
+    st.session_state.play_sound = False
 
 # Banner at top of main dashboard
 st.markdown('<div class="f1-banner"></div>', unsafe_allow_html=True)
