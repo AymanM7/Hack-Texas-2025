@@ -175,9 +175,12 @@ with st.expander(f"🤖 Simulation Visualizer - AI Lap Analysis for {selected_se
                     # Lap Selection Dropdown
                     st.markdown(f"### 📈 Lap Analysis - {selected_driver}")
 
-                    if analysis_results["lap_analyses"]:
-                        # Create lap options: "Comprehensive Report" + individual laps
-                        lap_options = ["📋 Comprehensive Report"] + [f"Lap {la['lap_number']}" for la in analysis_results["lap_analyses"]]
+                    # Get all available lap numbers from driver's actual lap data
+                    all_lap_numbers = sorted(driver_laps["lap_number"].unique())
+
+                    if all_lap_numbers:
+                        # Create lap options: "Comprehensive Report" + all individual laps
+                        lap_options = ["📋 Comprehensive Report"] + [f"Lap {int(ln)}" for ln in all_lap_numbers]
                         selected_lap_option = st.selectbox(
                             "Select lap to analyze:",
                             lap_options,
@@ -185,30 +188,33 @@ with st.expander(f"🤖 Simulation Visualizer - AI Lap Analysis for {selected_se
                         )
 
                         if selected_lap_option == "📋 Comprehensive Report":
-                            # Show all laps in expanders
-                            st.markdown("**All Laps:**")
-                            for lap_analysis in analysis_results["lap_analyses"]:
-                                lap_num = lap_analysis["lap_number"]
-                                lap_time = lap_analysis["lap_time"]
-                                timestamp_link = create_timestamp_link(lap_num, selected_session_key)
+                            # Show pre-analyzed laps in expanders
+                            st.markdown("**Pre-analyzed Laps:**")
+                            if analysis_results["lap_analyses"]:
+                                for lap_analysis in analysis_results["lap_analyses"]:
+                                    lap_num = lap_analysis["lap_number"]
+                                    lap_time = lap_analysis["lap_time"]
+                                    timestamp_link = create_timestamp_link(lap_num, selected_session_key)
 
-                                with st.expander(
-                                    f"Lap {lap_num} | {lap_time} | 🔗 {timestamp_link}",
-                                    expanded=False
-                                ):
-                                    st.write(lap_analysis["analysis"])
+                                    with st.expander(
+                                        f"Lap {lap_num} | {lap_time} | 🔗 {timestamp_link}",
+                                        expanded=False
+                                    ):
+                                        st.write(lap_analysis["analysis"])
 
-                                    # Show lap metrics
-                                    lap_row = driver_laps[driver_laps["lap_number"] == lap_num]
-                                    if not lap_row.empty:
-                                        col1, col2, col3 = st.columns(3)
-                                        with col1:
-                                            st.metric("Lap Time", lap_time)
-                                        with col2:
-                                            pit_status = "🔧 Pit Out" if lap_row.iloc[0].get("is_pit_out_lap") else "Normal"
-                                            st.metric("Status", pit_status)
-                                        with col3:
-                                            st.metric("Lap #", lap_num)
+                                        # Show lap metrics
+                                        lap_row = driver_laps[driver_laps["lap_number"] == lap_num]
+                                        if not lap_row.empty:
+                                            col1, col2, col3 = st.columns(3)
+                                            with col1:
+                                                st.metric("Lap Time", lap_time)
+                                            with col2:
+                                                pit_status = "🔧 Pit Out" if lap_row.iloc[0].get("is_pit_out_lap") else "Normal"
+                                                st.metric("Status", pit_status)
+                                            with col3:
+                                                st.metric("Lap #", lap_num)
+                            else:
+                                st.info("No pre-analyzed laps. Select a specific lap to analyze it.")
                         else:
                             # Show specific lap - generate analysis at runtime
                             selected_lap_num = int(selected_lap_option.split("Lap ")[1])
@@ -244,7 +250,7 @@ with st.expander(f"🤖 Simulation Visualizer - AI Lap Analysis for {selected_se
                                     with col3:
                                         st.metric("Lap #", lap_num)
                     else:
-                        st.warning("No lap analysis available.")
+                        st.warning("No lap data available for analysis.")
                 else:
                     st.warning(f"No lap data found for {selected_driver}")
         else:
