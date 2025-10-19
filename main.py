@@ -2,6 +2,8 @@ import streamlit as st
 import requests
 import os
 import base64
+import pandas as pd
+import plotly.graph_objects as go
 from dotenv import load_dotenv
 from app.data_loader import (
     fetch_data,
@@ -355,10 +357,20 @@ st.markdown('<div class="f1-banner"></div>', unsafe_allow_html=True)
 
 st.title("🏎️ Formula 1 Strategy Dashboard")
 
-# Create top-level tabs
-main_tabs = st.tabs(["📊 Analysis", "🎬 Race Animator"])
+# Create top-level navigation with session state
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = "Analysis"
 
-with main_tabs[0]:  # Analysis tab
+# Radio button for tab selection (maintains state across reruns)
+st.session_state.active_tab = st.radio(
+    "Select View:",
+    ["📊 Analysis", "🎬 Race Animator"],
+    horizontal=True,
+    index=0 if st.session_state.active_tab == "Analysis" else 1,
+    key="tab_selector"
+).split(" ", 1)[1]  # Extract just the name part
+
+if st.session_state.active_tab == "Analysis":
     col1, col2 = st.columns(2)
 
     with col1:
@@ -606,12 +618,300 @@ with main_tabs[0]:  # Analysis tab
         else:
             st.warning("No lap data available for analysis. Please ensure lap data is loaded above.")
 
-with main_tabs[1]:  # Race Animator tab
-    st.markdown("""
-    <iframe src="http://localhost:3333/index.html" width="100%" height="900" frameborder="0" style="border:2px solid #00d4ff; border-radius:8px;"></iframe>
-    """, unsafe_allow_html=True)
+elif st.session_state.active_tab == "Race Animator":
+    st.markdown("### 🏎️ F1 Race Replay - Austin 2024 Grand Prix")
+    st.markdown("**🏁 United States Grand Prix - Circuit of the Americas**")
 
-    st.info("💡 **Tip:** Click 'Load Session' in the animator to fetch real telemetry data. The animator runs on port 3333 with API backend on port 8001.")
+    # Embed HTML canvas animation
+    html_content = """
+    <style>
+        #canvas-container {
+            position: relative;
+            background: #1a1a1a;
+            border: 2px solid #E10600;
+            border-radius: 8px;
+            margin: 20px auto;
+            width: fit-content;
+        }
 
-if processed_df.empty:
-    st.info("Lap data is not available for this session.")
+        canvas {
+            display: block;
+        }
+
+        #controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 8px;
+        }
+
+        button {
+            background: #E10600;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #ff0800;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        #speed-control {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #info {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            color: white;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .info-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #E10600;
+        }
+
+        #loading {
+            text-align: center;
+            font-size: 20px;
+            color: #E10600;
+            padding: 40px;
+        }
+    </style>
+
+    <div id="loading">Loading telemetry data...</div>
+
+    <div id="canvas-container" style="display: none;">
+        <canvas id="raceCanvas" width="1000" height="700"></canvas>
+    </div>
+
+    <div id="controls" style="display: none;">
+        <button id="playBtn">▶️ Play</button>
+        <button id="pauseBtn" disabled>⏸️ Pause</button>
+        <button id="resetBtn">⏮️ Reset</button>
+
+        <div id="speed-control">
+            <label style="color: white;">Speed:</label>
+            <input type="range" id="speedSlider" min="1" max="100" value="20" step="1">
+            <span id="speedValue" style="color: white;">0.05x</span>
+        </div>
+    </div>
+
+    <div id="info" style="display: none;">
+        <div class="info-item">
+            <span class="info-label">Frame</span>
+            <span class="info-value" id="frameNum">0</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Lap</span>
+            <span class="info-value" id="lapNum">1</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Progress</span>
+            <span class="info-value" id="progress">0%</span>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('raceCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let telemetryData = null;
+        let frames = [];
+        let currentFrame = 0;
+        let isPlaying = false;
+        let animationId = null;
+        let playbackSpeed = 0.05;
+        let lastFrameTime = 0;
+        const targetFPS = 60;
+        const frameInterval = 1000 / targetFPS;
+
+        async function loadTelemetry() {
+            try {
+                const response = await fetch('http://localhost:8000/api/animation-telemetry/9618');
+                const data = await response.json();
+                telemetryData = data.drivers;
+
+                preprocessFrames();
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('canvas-container').style.display = 'block';
+                document.getElementById('controls').style.display = 'flex';
+                document.getElementById('info').style.display = 'flex';
+
+                drawFrame(0);
+                console.log('Loaded', Object.keys(telemetryData).length, 'drivers,', frames.length, 'frames');
+            } catch (error) {
+                document.getElementById('loading').textContent = 'Error: API server not running on port 8000';
+                console.error('Error:', error);
+            }
+        }
+
+        function preprocessFrames() {
+            const drivers = Object.keys(telemetryData);
+            const maxLength = Math.max(...drivers.map(d => telemetryData[d].telemetry.length));
+            const sampleRate = 3;
+            const numFrames = Math.floor(maxLength / sampleRate);
+
+            for (let i = 0; i < numFrames; i++) {
+                const frameData = {};
+                const telemetryIdx = i * sampleRate;
+
+                drivers.forEach(driverNum => {
+                    const driver = telemetryData[driverNum];
+                    const pointIdx = Math.min(telemetryIdx, driver.telemetry.length - 1);
+
+                    if (pointIdx >= 0 && pointIdx < driver.telemetry.length) {
+                        const point = driver.telemetry[pointIdx];
+                        frameData[driverNum] = {
+                            x: point.x,
+                            y: point.y,
+                            speed: point.speed,
+                            lap: point.lapNumber,
+                            code: driver.code,
+                            color: driver.color
+                        };
+                    }
+                });
+
+                frames.push(frameData);
+            }
+        }
+
+        function drawFrame(frameIndex) {
+            if (frameIndex >= frames.length) return;
+
+            const frame = frames[frameIndex];
+
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw track outline
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 6;
+            ctx.globalAlpha = 0.4;
+            ctx.beginPath();
+
+            const firstDriver = Object.keys(frames[0])[0];
+            frames.forEach((f, idx) => {
+                if (firstDriver in f) {
+                    if (idx === 0) {
+                        ctx.moveTo(f[firstDriver].x, f[firstDriver].y);
+                    } else {
+                        ctx.lineTo(f[firstDriver].x, f[firstDriver].y);
+                    }
+                }
+            });
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+
+            // Draw drivers
+            Object.keys(frame).forEach(driverNum => {
+                const driver = frame[driverNum];
+
+                ctx.fillStyle = driver.color;
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(driver.x, driver.y, 14, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 10px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(driver.code, driver.x, driver.y);
+            });
+
+            const firstDriverData = Object.values(frame)[0];
+            if (firstDriverData) {
+                document.getElementById('frameNum').textContent = frameIndex;
+                document.getElementById('lapNum').textContent = firstDriverData.lap;
+                document.getElementById('progress').textContent =
+                    ((frameIndex / frames.length) * 100).toFixed(1) + '%';
+            }
+        }
+
+        function animate(currentTime) {
+            if (!isPlaying) return;
+
+            const deltaTime = currentTime - lastFrameTime;
+
+            if (deltaTime >= frameInterval / playbackSpeed) {
+                currentFrame = (currentFrame + 1) % frames.length;
+                drawFrame(currentFrame);
+                lastFrameTime = currentTime;
+            }
+
+            animationId = requestAnimationFrame(animate);
+        }
+
+        document.getElementById('playBtn').addEventListener('click', () => {
+            isPlaying = true;
+            document.getElementById('playBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            lastFrameTime = performance.now();
+            animate(lastFrameTime);
+        });
+
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            isPlaying = false;
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            if (animationId) cancelAnimationFrame(animationId);
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            isPlaying = false;
+            currentFrame = 0;
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            if (animationId) cancelAnimationFrame(animationId);
+            drawFrame(0);
+        });
+
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            const sliderValue = parseInt(e.target.value);
+            playbackSpeed = 1 / sliderValue;
+            document.getElementById('speedValue').textContent = playbackSpeed.toFixed(2) + 'x';
+        });
+
+        loadTelemetry();
+    </script>
+    """
+
+    import streamlit.components.v1 as components
+    components.html(html_content, height=1000, scrolling=False)
+

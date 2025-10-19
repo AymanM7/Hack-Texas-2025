@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 import requests
 import os
+from math import isnan
 from dotenv import load_dotenv
 
 load_dotenv()

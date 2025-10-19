@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Race Animation - Austin 2024</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #0d0d0d;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #E10600;
+            margin-bottom: 10px;
+        }
+
+        #canvas-container {
+            position: relative;
+            background: #1a1a1a;
+            border: 2px solid #E10600;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin: 20px 0;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 8px;
+        }
+
+        button {
+            background: #E10600;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #ff0800;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        #speed-control {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input[type="range"] {
+            width: 150px;
+        }
+
+        #info {
+            display: flex;
+            gap: 30px;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 8px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .info-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #E10600;
+        }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #E10600;
+        }
+
+        .driver-legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            max-width: 800px;
+            margin-top: 20px;
+        }
+
+        .driver-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px;
+            background: #1a1a1a;
+            border-radius: 4px;
+        }
+
+        .driver-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+
+        .driver-name {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏎️ F1 Race Animation - Austin 2024 Grand Prix</h1>
+    <p>Circuit of the Americas</p>
+
+    <div id="loading">Loading telemetry data...</div>
+
+    <div id="canvas-container" style="display: none;">
+        <canvas id="raceCanvas" width="1000" height="800"></canvas>
+    </div>
+
+    <div id="controls" style="display: none;">
+        <button id="playBtn">▶️ Play</button>
+        <button id="pauseBtn" disabled>⏸️ Pause</button>
+        <button id="resetBtn">⏮️ Reset</button>
+
+        <div id="speed-control">
+            <label>Speed:</label>
+            <input type="range" id="speedSlider" min="1" max="20" value="5" step="1">
+            <span id="speedValue">5x</span>
+        </div>
+    </div>
+
+    <div id="info" style="display: none;">
+        <div class="info-item">
+            <span class="info-label">Frame</span>
+            <span class="info-value" id="frameNum">0</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Lap</span>
+            <span class="info-value" id="lapNum">1</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Progress</span>
+            <span class="info-value" id="progress">0%</span>
+        </div>
+    </div>
+
+    <div id="legend" class="driver-legend" style="display: none;"></div>
+
+    <script>
+        const canvas = document.getElementById('raceCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let telemetryData = null;
+        let frames = [];
+        let currentFrame = 0;
+        let isPlaying = false;
+        let animationId = null;
+        let playbackSpeed = 5;
+        let lastFrameTime = 0;
+        const targetFPS = 60;
+        const frameInterval = 1000 / targetFPS;
+
+        // Load telemetry data
+        async function loadTelemetry() {
+            try {
+                const response = await fetch('http://localhost:8000/api/animation-telemetry/9618');
+                const data = await response.json();
+                telemetryData = data.drivers;
+
+                // Preprocess frames
+                preprocessFrames();
+
+                // Hide loading, show canvas
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('canvas-container').style.display = 'block';
+                document.getElementById('controls').style.display = 'flex';
+                document.getElementById('info').style.display = 'flex';
+                document.getElementById('legend').style.display = 'grid';
+
+                // Draw initial frame
+                drawFrame(0);
+
+                // Create legend
+                createLegend();
+
+                console.log(`Loaded ${Object.keys(telemetryData).length} drivers`);
+                console.log(`Generated ${frames.length} frames`);
+            } catch (error) {
+                document.getElementById('loading').textContent = 'Error loading data. Make sure API server is running on port 8000.';
+                console.error('Error:', error);
+            }
+        }
+
+        // Preprocess frames (sample every 3rd point for smooth 60fps)
+        function preprocessFrames() {
+            const drivers = Object.keys(telemetryData);
+            const maxLength = Math.max(...drivers.map(d => telemetryData[d].telemetry.length));
+            const sampleRate = 3;
+            const numFrames = Math.floor(maxLength / sampleRate);
+
+            for (let i = 0; i < numFrames; i++) {
+                const frameData = {};
+                const telemetryIdx = i * sampleRate;
+
+                drivers.forEach(driverNum => {
+                    const driver = telemetryData[driverNum];
+                    const pointIdx = Math.min(telemetryIdx, driver.telemetry.length - 1);
+
+                    if (pointIdx >= 0 && pointIdx < driver.telemetry.length) {
+                        const point = driver.telemetry[pointIdx];
+                        frameData[driverNum] = {
+                            x: point.x,
+                            y: point.y,
+                            speed: point.speed,
+                            lap: point.lapNumber,
+                            code: driver.code,
+                            name: driver.name,
+                            team: driver.team,
+                            color: driver.color
+                        };
+                    }
+                });
+
+                frames.push(frameData);
+            }
+        }
+
+        // Draw a single frame
+        function drawFrame(frameIndex) {
+            if (frameIndex >= frames.length) return;
+
+            const frame = frames[frameIndex];
+
+            // Clear canvas
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw track outline (using all frames from first driver)
+            if (frameIndex === 0 || frameIndex % 10 === 0) {
+                ctx.strokeStyle = '#666666';
+                ctx.lineWidth = 6;
+                ctx.globalAlpha = 0.4;
+                ctx.beginPath();
+
+                const firstDriver = Object.keys(frames[0])[0];
+                frames.forEach((f, idx) => {
+                    if (firstDriver in f) {
+                        if (idx === 0) {
+                            ctx.moveTo(f[firstDriver].x, f[firstDriver].y);
+                        } else {
+                            ctx.lineTo(f[firstDriver].x, f[firstDriver].y);
+                        }
+                    }
+                });
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
+            }
+
+            // Draw each driver
+            Object.keys(frame).forEach(driverNum => {
+                const driver = frame[driverNum];
+
+                // Draw circle
+                ctx.fillStyle = driver.color;
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(driver.x, driver.y, 14, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Draw driver code
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 10px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(driver.code, driver.x, driver.y);
+            });
+
+            // Update info
+            const firstDriver = Object.values(frame)[0];
+            if (firstDriver) {
+                document.getElementById('frameNum').textContent = frameIndex;
+                document.getElementById('lapNum').textContent = firstDriver.lap;
+                document.getElementById('progress').textContent =
+                    `${((frameIndex / frames.length) * 100).toFixed(1)}%`;
+            }
+        }
+
+        // Animation loop
+        function animate(currentTime) {
+            if (!isPlaying) return;
+
+            const deltaTime = currentTime - lastFrameTime;
+
+            if (deltaTime >= frameInterval / playbackSpeed) {
+                currentFrame = (currentFrame + 1) % frames.length;
+                drawFrame(currentFrame);
+                lastFrameTime = currentTime;
+            }
+
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // Controls
+        document.getElementById('playBtn').addEventListener('click', () => {
+            isPlaying = true;
+            document.getElementById('playBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            lastFrameTime = performance.now();
+            animate(lastFrameTime);
+        });
+
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            isPlaying = false;
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            isPlaying = false;
+            currentFrame = 0;
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            drawFrame(0);
+        });
+
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            playbackSpeed = parseInt(e.target.value);
+            document.getElementById('speedValue').textContent = `${playbackSpeed}x`;
+        });
+
+        // Create driver legend
+        function createLegend() {
+            const legendDiv = document.getElementById('legend');
+            const drivers = Object.values(telemetryData);
+
+            drivers.slice(0, 10).forEach(driver => {
+                const item = document.createElement('div');
+                item.className = 'driver-item';
+
+                const colorBox = document.createElement('div');
+                colorBox.className = 'driver-color';
+                colorBox.style.backgroundColor = driver.color;
+
+                const name = document.createElement('span');
+                name.className = 'driver-name';
+                name.textContent = `${driver.code} - ${driver.name}`;
+
+                item.appendChild(colorBox);
+                item.appendChild(name);
+                legendDiv.appendChild(item);
+            });
+        }
+
+        // Load on page load
+        loadTelemetry();
+    </script>
+</body>
+</html>
