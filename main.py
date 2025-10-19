@@ -225,29 +225,30 @@ with st.expander(f"🎮 Race Predictor - Simulated Race for {selected_country} {
                 # Build profile
                 perfect_profile = build_perfect_lap_profile(historical_races)
 
-                # Build driver name map from 2025 data, fallback to 2024
+                # Build driver name map from multiple years to get all drivers
+                # Prioritize recent years but backfill with older years
                 driver_name_map = {}
-                driver_data_year = None
 
-                for year in [2025, 2024]:  # Try 2025 first, then 2024
+                for year in [2025, 2024, 2023]:  # Try 2025 first, then 2024, then 2023
                     if year in historical_races:
                         try:
-                            st.write(f"📊 Loading driver data from {year} Austin race...")
                             drivers_df = fetch_drivers(historical_races[year]["session_key"])
+                            drivers_added = 0
                             for _, driver_row in drivers_df.iterrows():
                                 driver_num = str(int(driver_row["driver_number"]))
-                                driver_name_map[driver_num] = {
-                                    "name": driver_row.get("name_acronym", f"DRV{driver_num}"),
-                                    "team": driver_row.get("team_name", "Unknown"),
-                                }
-                            driver_data_year = year
-                            st.success(f"✅ Loaded {len(driver_name_map)} drivers from {year} Austin race")
-                            break
+                                # Only add if not already in map (prioritize recent years)
+                                if driver_num not in driver_name_map:
+                                    driver_name_map[driver_num] = {
+                                        "name": driver_row.get("name_acronym", f"DRV{driver_num}"),
+                                        "team": driver_row.get("team_name", "Unknown"),
+                                    }
+                                    drivers_added += 1
+                            if drivers_added > 0:
+                                st.write(f"📊 Added {drivers_added} drivers from {year} Austin race")
                         except Exception as e:
-                            st.warning(f"Could not load {year} drivers: {str(e)}")
+                            pass
 
-                if not driver_name_map:
-                    st.warning("Could not load driver data from any year")
+                st.success(f"✅ Loaded {len(driver_name_map)} total drivers from historical data")
 
                 # Generate simulated race with driver names
                 simulated_df = generate_simulated_race(perfect_profile, driver_name_map=driver_name_map, num_laps=56)
