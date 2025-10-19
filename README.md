@@ -1,168 +1,243 @@
-# OpenF1 API: Interactive Strategy Dashboard Tutorial with Streamlit & Plotly
+# Formula 1 Interactive Dashboard & Race Animator
 
-Welcome to this tutorial, where you'll learn to build an interactive Formula 1 strategy dashboard using the OpenF1 API, Streamlit, and Plotly. This hands-on project is ideal for those interested in data visualization, sports analytics, and modern Python web tools.
+A comprehensive Formula 1 analytics platform combining real-time race data visualization, AI-powered lap analysis, and interactive race animation. Built with Streamlit, FastAPI, OpenF1 API, FastF1, and Google Gemini AI.
 
-## 📊 Overview
+## 🏎️ Features
 
-This dashboard enables users to:
-- Select a race by year and country (defaults to 2025 Austin F1 race)
-- View lap times per driver with pit stop flags
-- Analyze tire strategy over the race distance
-- Compare pit stop durations
-- **🤖 AI-Powered Lap Analysis**: Get Gemini AI insights on driver performance, lap strategy, and race events
+### Analysis Dashboard
+- **Lap Time Visualization**: Interactive line charts showing lap-by-lap performance with pit stop indicators
+- **Tire Strategy Analysis**: Horizontal bar charts displaying tire compound usage across race distance
+- **Pit Stop Comparison**: Side-by-side comparison of pit stop durations
+- **AI-Powered Analysis**: Google Gemini 2.5 Flash provides intelligent lap-by-lap insights and performance feedback
 
-### Technologies used:
-- **OpenF1 API** for motorsport telemetry data
-- **Google Gemini 2.5** for AI-powered lap analysis
-- **Pandas** for data handling
-- **Plotly** for interactive charts
-- **Streamlit** for web UI  
+### Race Animator
+- **Real-Time Race Replay**: Animated visualization of driver positions using FastF1 telemetry data
+- **Track-Accurate Rendering**: Precise X/Y coordinate mapping with affine transformation
+- **Multi-Session Support**: Practice, Qualifying, and Race sessions from the 2024 season
+- **Performance Optimized**: Intelligent caching and data subsampling for smooth playback
 
----
+## 🛠️ Technologies
+
+- **Frontend**: Streamlit (dashboard), React (animator)
+- **Backend**: FastAPI (REST API server)
+- **Data Sources**: OpenF1 API, FastF1
+- **AI/ML**: Google Gemini 2.5 Flash
+- **Data Processing**: Pandas, NumPy
+- **Visualization**: Plotly
+- **Voice**: ElevenLabs Text-to-Speech (optional)
 
 ## 📁 Project Structure
 
 ```
 F1/
+├── main.py                    # Streamlit dashboard (port 3000)
+├── api_server.py              # FastAPI server (port 8000)
 ├── app/
-│   ├── data_loader.py        # Handles OpenF1 API requests
-│   ├── data_processor.py     # Cleans and enriches OpenF1 data
-│   ├── visualizer.py         # Builds interactive visualizations from OpenF1 data
-│   └── lap_analyzer.py       # AI-powered lap analysis with Gemini
-├── main.py                   # Streamlit app entry point
-├── requirements.txt          # Python dependencies
-├── .env                      # Contains BASE_API_URL and GEMINI_API_KEY
-├── CLAUDE.md                 # Architecture documentation
-└── GEMINI_SETUP.md          # Gemini API configuration guide
+│   ├── data_loader.py         # OpenF1 API wrapper with caching
+│   ├── data_processor.py      # Data cleaning and transformation
+│   ├── visualizer.py          # Plotly chart generators
+│   ├── lap_analyzer.py        # Gemini AI lap analysis
+│   ├── race_predictor.py      # Race outcome prediction
+│   └── race_simulator.py      # Race simulation engine
+├── requirements.txt           # Python dependencies
+├── .env                       # Environment variables (API keys)
+├── CLAUDE.md                  # Development guidelines
+└── GEMINI_SETUP.md           # Gemini API setup instructions
 ```
 
----
+## 🚀 Quick Start
 
-## 📸 Screenshot
-
-![lap_time_chart](./assets/Screenshot1.png)
-![tyre_strategy_chart](./assets/Screenshot2.png)
-![pit_stop_chart](./assets/Screenshot3.png)
-
-## 🛠️ Setup & Requirements
-
-### 1. Clone and navigate to project
+### 1. Clone Repository
 ```bash
 git clone https://github.com/Garyxue213/F1.git
 cd F1
 ```
 
-### 2. Create and activate a virtual environment
+### 2. Create Virtual Environment
 ```bash
 python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 ```
 
-### 3. Install all dependencies from requirements.txt
+### 3. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Create a `.env` file in the project root
-```
+### 4. Configure Environment Variables
+
+Create a `.env` file in the project root:
+
+```env
 BASE_API_URL=https://api.openf1.org/v1/
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
-**Note:** Get your free Gemini API key at [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
+**Getting API Keys:**
+- **Gemini API**: Free tier available at [Google AI Studio](https://aistudio.google.com/app/apikey)
+- See `GEMINI_SETUP.md` for detailed configuration instructions
 
----
+### 5. Run the Application
 
-## 🚀 Launch the App
+**Terminal 1 - API Server (Required for Race Animator):**
+```bash
+uvicorn api_server:app --reload --port 8000
+```
 
+**Terminal 2 - Streamlit Dashboard:**
 ```bash
 streamlit run main.py --server.port 3000
 ```
 
-Then open your browser and go to:
+**Access the Dashboard:**
 ```
 http://localhost:3000
 ```
 
-The dashboard will open with the 2025 Austin F1 race pre-selected. Scroll down to the **"🤖 Simulation Visualizer"** section to see AI-powered lap analysis!
+The dashboard will load with the Analysis tab active. Switch to the **Race Animator** tab to view animated race replays.
+
+## 📊 Dashboard Sections
+
+### Analysis Tab
+
+1. **Session Selection**
+   - Year picker (2020-2025)
+   - Country/Grand Prix selector
+   - Session type filter (Practice, Qualifying, Race)
+
+2. **Lap Time Chart**
+   - Color-coded by driver/team
+   - Pit out-laps marked with 🔧 icon
+   - Hover for detailed lap information
+   - Dynamic MM:SS time formatting
+
+3. **Tire Strategy**
+   - Stint-by-stint tire compound visualization
+   - Standard F1 color coding:
+     - SOFT (red), MEDIUM (yellow), HARD (white)
+     - INTERMEDIATE (green), WET (blue)
+   - Lap range display per stint
+
+4. **Pit Stop Analysis**
+   - Grouped bar chart comparison
+   - Duration in seconds
+   - Chronologically sorted
+
+5. **AI Lap Analysis**
+   - Select any driver from the session
+   - Choose specific lap or comprehensive report
+   - Gemini-powered insights including:
+     - Performance analysis
+     - Pit stop strategy evaluation
+     - Sector-by-sector breakdown
+     - Race context and positioning
+
+### Race Animator Tab
+
+- Embedded interactive race visualization
+- Real-time position tracking
+- FastF1 telemetry integration
+- Supports 2024 season sessions
+
+## 🔧 API Endpoints
+
+The FastAPI server (`api_server.py`) provides:
+
+### Session Data
+- `GET /api/sessions/{year}/{country}` - Get available sessions
+- `GET /api/animation-sessions` - List animator-compatible sessions
+
+### Telemetry
+- `GET /api/animation-telemetry/{session_key}` - FastF1 telemetry data
+  - Cached responses for performance
+  - Automatic cache warming for popular races
+  - Affine coordinate transformation for accurate rendering
+
+### Simulation
+- `POST /api/race-simulator/{session_key}` - Race simulation and prediction
+
+### Health
+- `GET /api/health` - Server status check
+
+## 🎯 Key Features Explained
+
+### Data Caching Strategy
+- **OpenF1 API calls**: Cached at loader level with `@st.cache_data`
+- **FastF1 telemetry**: Server-side caching with automatic warm-up
+- **Gemini AI analysis**: Cached per driver/session to minimize API costs
+
+### Coordinate Transformation
+Race Animator uses affine transformation to map FastF1 coordinates to visualization space:
+```python
+viz_coord = viz_min + (raw_coord - raw_min) / raw_range * viz_range
+```
+This ensures accurate track representation across different circuits.
+
+### AI Analysis Format
+Gemini receives structured context including:
+- Lap times and sector splits
+- Tire compound and age
+- Pit stop data
+- Track position and gaps
+- Weather conditions
+
+Responses include clickable timestamps in format `session_key:lap_number` for simulation navigation.
+
+## 📦 Requirements
+
+Core dependencies (see `requirements.txt` for full list):
+- `streamlit>=1.31.0`
+- `fastapi>=0.109.0`
+- `uvicorn>=0.27.0`
+- `pandas>=2.2.0`
+- `plotly>=5.18.0`
+- `fastf1>=3.3.0`
+- `google-generativeai>=0.4.0`
+- `python-dotenv>=1.0.0`
+- `requests>=2.31.0`
+
+## 🎨 Color Scheme
+
+Driver/team colors are sourced from OpenF1 API and normalized with `#` prefix for consistency across all visualizations.
+
+## ⚠️ Important Notes
+
+- **FastF1 Initial Load**: First session load may take 30-60 seconds as FastF1 downloads telemetry data
+- **Gemini Rate Limits**: Free tier has usage quotas - analysis results are cached to minimize API calls
+- **Session Keys**: Not all 2024 sessions may have complete FastF1 data - check logs for availability
+- **Cache Warming**: API server pre-loads popular sessions (Abu Dhabi, Las Vegas, Singapore) on startup
+
+## 🔮 Future Enhancements
+
+Potential extensions:
+- Live timing integration
+- Comparative driver performance analysis
+- Weather impact visualization
+- Sector time heatmaps
+- Qualifying lap analysis
+- Championship standings tracker
+
+## 📝 Development
+
+See `CLAUDE.md` for:
+- Architecture overview
+- Component responsibilities
+- Integration points
+- Development guidelines
+
+## 📄 License
+
+MIT License - See LICENSE file for details
+
+## 🙏 Acknowledgments
+
+- [OpenF1 API](https://openf1.org/) for comprehensive F1 data
+- [FastF1](https://github.com/theOehrly/Fast-F1) for telemetry processing
+- [Google Gemini](https://ai.google.dev/) for AI-powered analysis
+- Formula 1 for the amazing sport
 
 ---
 
-### 3. 📂 main.py Highlights
+**Built with ❤️ for F1 fans and data enthusiasts**
 
-#### Features:
-
-Dynamic year/country selection
-
-Granular session data filtering
-
-Lap time, tire strategy, and pit stop visualizations
-
-#### Key Flow:
-
-Fetch meeting/session info via data_loader.py
-
-Process raw data in data_processor.py
-
-Visualize with plot_lap_times(), plot_tire_strategy(), plot_pit_stop() from visualizer.py
-
-##### Inline comments in the code guide you through OpenF1 endpoint usage:
-
-meetings returns all races in a season
-
-sessions returns FP1, Quali, Race for a given race (meeting_key)
-
-laps, pit, stints, and drivers use session_key to pull telemetry data
-
-
-### 4 🔍 File Descriptions
-```bash
-data_loader.py
-```
-Handles OpenF1 API calls using requests, with optional pagination logic. Each fetch function:
-
-Specifies the OpenF1 endpoint (e.g., "laps", "drivers")
-
-Applies query filters (like session_key or meeting_key)
-
-Uses @st.cache_data to reduce network calls
-```bash
-data_processor.py
-```
-Cleans and formats raw OpenF1 data:
-
-Filters invalid lap or pit rows
-
-Calculates stint lap ranges from lap_start to lap_end
-
-Builds a driver_color_map from drivers.team_colour to use in plots
-```bash
-visualizer.py
-```
-Creates interactive charts:
-
-plot_lap_times(): line chart of lap_duration colored by driver
-
-plot_tire_strategy(): horizontal bar chart from stints
-
-plot_pit_stop(): vertical bar chart for pit_duration
-
-All charts format hover templates and colors using OpenF1 data fields.
-
----
-
-## 💡 Extend This Project
-
-Ideas to build on:
-- Add tire degradation trends
-- Compare qualifying vs. race pace
-- Highlight fastest laps and race events
-- Integrate sector time analytics
-
----
-
-## 🎉 Conclusion
-
-You've now built an interactive F1 dashboard using real-world telemetry data from the OpenF1 API. This is a great example of combining API usage, data processing, and visual storytelling in Python.
-
-Fork it, share it, or showcase it in your portfolio!
+Repository: [https://github.com/Garyxue213/F1](https://github.com/Garyxue213/F1)
