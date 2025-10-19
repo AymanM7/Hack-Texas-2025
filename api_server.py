@@ -42,6 +42,49 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Telemetry cache to avoid re-fetching FastF1 data
+_telemetry_cache = {}
+
+
+def _get_cached_telemetry(session_key: str):
+    """Get telemetry from cache or return None."""
+    return _telemetry_cache.get(session_key)
+
+
+def _set_cached_telemetry(session_key: str, telemetry_data: dict):
+    """Store telemetry in cache."""
+    _telemetry_cache[session_key] = telemetry_data
+    return telemetry_data
+
+
+@app.on_event("startup")
+async def warm_cache():
+    """Pre-warm cache with recent/popular sessions on startup."""
+    import threading
+    import time
+
+    # Sessions to warm (most recent races and popular circuits)
+    sessions_to_warm = [
+        "9662",  # Abu Dhabi Race
+        "9636",  # Las Vegas Race
+        "9635",  # Singapore Race
+    ]
+
+    def _warm_sessions():
+        """Warm cache in background thread."""
+        for session_key in sessions_to_warm:
+            try:
+                # Make request to populate cache
+                get_animation_telemetry(session_key)
+                print(f"✓ Warmed cache for session {session_key}")
+                time.sleep(1)  # Small delay between requests
+            except Exception as e:
+                print(f"⚠ Failed to warm cache for session {session_key}: {e}")
+
+    # Run cache warming in background thread to not block startup
+    cache_thread = threading.Thread(target=_warm_sessions, daemon=True)
+    cache_thread.start()
+
 
 @app.get("/api/health")
 def health_check():
@@ -152,6 +195,263 @@ def get_race_prediction(year: int):
             "podium": podium_df.to_dict(orient="records"),
             "positions": positions_df.to_dict(orient="records")[:56]  # First 56 positions
         }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/animation-telemetry/{session_key}")
+def get_animation_telemetry(session_key: str):
+    """
+    Fetch telemetry data for F1 Race Animator using FastF1
+    Returns driver positions, speeds, and telemetry data formatted for animation
+    Uses caching to avoid re-fetching data for the same session
+    """
+    # Check cache first
+    cached_data = _get_cached_telemetry(session_key)
+    if cached_data is not None:
+        return cached_data
+
+    try:
+        import fastf1
+        import pandas as pd
+
+        # Map OpenF1 session keys to (GP_name, year, session_type)
+        # Sessions include Race (R), Qualifying (Q), and Practice (FP1, FP2, FP3)
+        SESSION_KEY_MAPPING = {
+            # Bahrain
+            "9609": ("Bahrain", 2024, "FP1"),
+            "9610": ("Bahrain", 2024, "FP2"),
+            "9611": ("Bahrain", 2024, "Q"),
+            "9612": ("Bahrain", 2024, "R"),
+            # Saudi Arabia
+            "9613": ("Saudi Arabia", 2024, "R"),
+            # Australia
+            "9614": ("Australia", 2024, "R"),
+            # Japan
+            "9615": ("Japan", 2024, "R"),
+            # China
+            "9616": ("China", 2024, "R"),
+            # United States (Austin)
+            "9618": ("United States", 2024, "R"),
+            "9644": ("United States", 2024, "R"),
+            # Mexico
+            "9619": ("Mexico", 2024, "R"),
+            # Brazil
+            "9620": ("Brazil", 2024, "R"),
+            # Abu Dhabi
+            "9461": ("Abu Dhabi", 2024, "FP1"),
+            "9656": ("Abu Dhabi", 2024, "FP2"),
+            "9658": ("Abu Dhabi", 2024, "Q"),
+            "9662": ("Abu Dhabi", 2024, "R"),
+            "9621": ("Abu Dhabi", 2024, "R"),
+            # Miami
+            "9625": ("Miami", 2024, "R"),
+            # Monaco
+            "9626": ("Monaco", 2024, "R"),
+            # Canada
+            "9627": ("Canada", 2024, "R"),
+            # Spain
+            "9628": ("Spain", 2024, "R"),
+            # Austria
+            "9629": ("Austria", 2024, "R"),
+            # United Kingdom
+            "9630": ("United Kingdom", 2024, "R"),
+            # Hungary
+            "9631": ("Hungary", 2024, "R"),
+            # Belgium
+            "9632": ("Belgium", 2024, "R"),
+            # Netherlands
+            "9633": ("Netherlands", 2024, "R"),
+            # Italy
+            "9634": ("Italy", 2024, "R"),
+            # Singapore
+            "9635": ("Singapore", 2024, "R"),
+            # Las Vegas
+            "9636": ("Las Vegas", 2024, "R"),
+            # Qatar
+            "9645": ("Qatar", 2024, "FP1"),
+            "9646": ("Qatar", 2024, "Q"),
+            "9655": ("Qatar", 2024, "R"),
+            "9637": ("Qatar", 2024, "R"),
+        }
+
+        # Get GP name, year, and session type from session key
+        if session_key not in SESSION_KEY_MAPPING:
+            return {"drivers": {}, "session_key": session_key, "data_points": 0}
+
+        gp_name, year, session_type = SESSION_KEY_MAPPING[session_key]
+
+        # Get session from FastF1
+        try:
+            session = fastf1.get_session(year, gp_name, session_type)
+        except:
+            # Fallback to Race if session type not found
+            session = fastf1.get_session(year, gp_name, 'R')
+        if session is None:
+            return {"drivers": {}, "session_key": session_key, "data_points": 0}
+
+        # Load telemetry data (car_data includes X, Y, Speed, etc.)
+        session.load(telemetry=True, weather=False)
+
+        # Get driver info
+        drivers_info = session.drivers
+        if not drivers_info:
+            return {"drivers": {}, "session_key": session_key, "data_points": 0}
+
+        # Calculate transformation using track bounds as reference
+        # Collect all coordinates to find bounds
+        all_x_coords = []
+        all_y_coords = []
+
+        for driver_number in drivers_info:
+            try:
+                pos_data = session.pos_data.get(driver_number)
+                if pos_data is not None and not pos_data.empty:
+                    for _, point in pos_data.iterrows():
+                        x = float(point['X']) if pd.notna(point.get('X')) else None
+                        y = float(point['Y']) if pd.notna(point.get('Y')) else None
+                        if x is not None and y is not None and not isnan(x) and not isnan(y):
+                            all_x_coords.append(x)
+                            all_y_coords.append(y)
+            except:
+                pass
+
+        # Calculate bounds
+        if all_x_coords and all_y_coords:
+            driver_min_x = min(all_x_coords)
+            driver_max_x = max(all_x_coords)
+            driver_min_y = min(all_y_coords)
+            driver_max_y = max(all_y_coords)
+            driver_range_x = driver_max_x - driver_min_x if driver_max_x > driver_min_x else 1
+            driver_range_y = driver_max_y - driver_min_y if driver_max_y > driver_min_y else 1
+        else:
+            driver_min_x = driver_min_y = 0
+            driver_max_x = driver_max_y = 1000
+            driver_range_x = driver_range_y = 1000
+
+        # Reference visualization bounds (matches f1-tracks.js expected scale)
+        viz_min_x, viz_max_x = 0, 1000
+        viz_min_y, viz_max_y = 0, 1000
+        viz_range_x = viz_max_x - viz_min_x
+        viz_range_y = viz_max_y - viz_min_y
+
+        # Build driver color map and drivers data
+        drivers_data = {}
+
+        for driver_number in drivers_info:
+            try:
+                driver_num_str = str(driver_number)
+
+                # Get driver details
+                driver_obj = session.get_driver(driver_number)
+                driver_code = driver_obj['Abbreviation'] if 'Abbreviation' in driver_obj else f"DRV{driver_number}"
+                driver_name = driver_obj.get('Surname', f"DRV{driver_number}")
+                team = driver_obj.get('TeamName', "Unknown")
+
+                # Get driver's position data (real track coordinates)
+                pos_data = session.pos_data.get(driver_number)
+                car_data = session.car_data.get(driver_number)
+
+                if pos_data is None or pos_data.empty:
+                    continue
+
+                # Extract telemetry points - use pos_data for real track positions
+                telemetry = []
+                # Subsample every Nth point to keep data size reasonable
+                subsample_rate = max(1, len(pos_data) // 2000)  # Target ~2000 points per driver
+
+                for idx, (_, point) in enumerate(pos_data.iterrows()):
+                    if idx % subsample_rate != 0:
+                        continue
+                    try:
+                        # Extract real position data and transform to visualization space
+                        x_raw = float(point['X']) if pd.notna(point.get('X')) else 0.0
+                        y_raw = float(point['Y']) if pd.notna(point.get('Y')) else 0.0
+
+                        # Affine transformation: map driver coordinates to visualization bounds
+                        # Formula: viz_coord = viz_min + (raw_coord - raw_min) / raw_range * viz_range
+                        x = viz_min_x + (x_raw - driver_min_x) / driver_range_x * viz_range_x
+                        y = viz_min_y + (y_raw - driver_min_y) / driver_range_y * viz_range_y
+
+                        # Clamp to visualization bounds
+                        x = max(viz_min_x, min(viz_max_x, x))
+                        y = max(viz_min_y, min(viz_max_y, y))
+
+                        time_val = float(idx) / subsample_rate
+
+                        telemetry_point = {
+                            "time": time_val,
+                            "x": x,
+                            "y": y,
+                            "speed": 0,
+                            "gear": 3,
+                            "throttle": 0.5,
+                            "brake": 0.0,
+                            "drs": False,
+                            "lapNumber": 1
+                        }
+                        telemetry.append(telemetry_point)
+                    except:
+                        continue
+
+                if telemetry:
+                    # Generate color based on driver number
+                    color = f"hsl({(int(driver_number) * 47) % 360}, 70%, 50%)"
+
+                    drivers_data[driver_num_str] = {
+                        "name": driver_name,
+                        "code": driver_code,
+                        "number": int(driver_number),
+                        "team": team,
+                        "color": color,
+                        "telemetry": telemetry
+                    }
+            except:
+                continue
+
+        # Cache and return the result
+        response = {
+            "drivers": drivers_data,
+            "session_key": session_key,
+            "data_points": sum(len(d["telemetry"]) for d in drivers_data.values())
+        }
+        _set_cached_telemetry(session_key, response)
+        return response
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"Server error: {str(e)}"})
+
+
+@app.get("/api/animation-sessions")
+def get_animation_sessions():
+    """
+    Get list of available sessions for animation
+    Returns recent races sorted by date
+    """
+    try:
+        # Fetch recent meetings
+        meetings = fetch_data("meetings", {"year": 2024})
+
+        sessions_list = []
+        for _, meeting in meetings.iterrows():
+            try:
+                meeting_key = meeting.get("meeting_key")
+                sessions = fetch_data("sessions", {"meeting_key": meeting_key})
+
+                for _, session in sessions.iterrows():
+                    if session.get("session_name") in ["Practice 1", "Practice 2", "Qualifying", "Race"]:
+                        sessions_list.append({
+                            "session_key": session.get("session_key"),
+                            "session_name": session.get("session_name"),
+                            "meeting_name": meeting.get("meeting_name", ""),
+                            "country": meeting.get("country_name", ""),
+                            "date": session.get("date_start", "")
+                        })
+            except:
+                pass
+
+        return {"sessions": sorted(sessions_list, key=lambda x: x.get("date", ""), reverse=True)[:20]}
+
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
