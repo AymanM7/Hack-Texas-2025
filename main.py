@@ -225,8 +225,24 @@ with st.expander(f"🎮 Race Predictor - Simulated Race for {selected_country} {
                 # Build profile
                 perfect_profile = build_perfect_lap_profile(historical_races)
 
-                # Generate simulated race
-                simulated_df = generate_simulated_race(perfect_profile, num_laps=56)
+                # Build driver name map from 2025 data (most recent), fallback to 2024 or 2023
+                driver_name_map = {}
+                for year in [2025, 2024, 2023]:
+                    if year in historical_races:
+                        try:
+                            drivers_df = fetch_drivers(historical_races[year]["session_key"])
+                            for _, driver_row in drivers_df.iterrows():
+                                driver_num = str(int(driver_row["driver_number"]))
+                                if driver_num not in driver_name_map:
+                                    driver_name_map[driver_num] = {
+                                        "name": driver_row.get("name_acronym", f"DRV{driver_num}"),
+                                        "team": driver_row.get("team_name", "Unknown"),
+                                    }
+                        except:
+                            pass
+
+                # Generate simulated race with driver names
+                simulated_df = generate_simulated_race(perfect_profile, driver_name_map=driver_name_map, num_laps=56)
                 positions_df = calculate_race_positions(simulated_df)
 
             if not simulated_df.empty:
@@ -242,13 +258,30 @@ with st.expander(f"🎮 Race Predictor - Simulated Race for {selected_country} {
                 with col3:
                     st.write("")  # Spacing
 
-                # Driver selection
+                # Driver selection with names
                 all_drivers = sorted(simulated_df["driver_number"].unique())
-                selected_drivers_sim = st.multiselect(
+
+                # Create mapping of driver number to display name
+                driver_display_map = {}
+                driver_reverse_map = {}  # name -> number for selected drivers
+                for driver_num in all_drivers:
+                    driver_num_str = str(driver_num)
+                    driver_name = driver_name_map.get(driver_num_str, {}).get("name", driver_num_str)
+                    driver_display_map[driver_num_str] = driver_name
+                    driver_reverse_map[driver_name] = driver_num_str
+
+                # Display names in multiselect
+                display_options = [driver_display_map[str(d)] for d in all_drivers]
+                default_display = display_options[:2] if len(display_options) > 1 else display_options[:1]
+
+                selected_drivers_display = st.multiselect(
                     "Select drivers to display",
-                    [str(d) for d in all_drivers],
-                    default=[str(all_drivers[0]), str(all_drivers[1])] if len(all_drivers) > 1 else [str(all_drivers[0])]
+                    display_options,
+                    default=default_display
                 )
+
+                # Convert back to driver numbers for internal logic
+                selected_drivers_sim = [driver_reverse_map[name] for name in selected_drivers_display]
 
                 if selected_drivers_sim:
                     # Show race visualization
@@ -272,7 +305,9 @@ with st.expander(f"🎮 Race Predictor - Simulated Race for {selected_country} {
                         lap_data = positions_df[positions_df["lap_number"] == current_lap]
                         if not lap_data.empty:
                             fastest_lap = lap_data.loc[lap_data["lap_time"].idxmin()]
-                            st.metric("Fastest Lap", f"{fastest_lap['driver_number']}")
+                            driver_num_str = str(fastest_lap['driver_number'])
+                            driver_display_name = driver_display_map.get(driver_num_str, driver_num_str)
+                            st.metric("Fastest Lap", driver_display_name)
                             st.metric("Time", f"{fastest_lap['lap_time']:.3f}s")
 
                     # Telemetry chart
@@ -286,21 +321,7 @@ with st.expander(f"🎮 Race Predictor - Simulated Race for {selected_country} {
                     # Podium Prediction
                     st.markdown("---")
                     st.markdown("### 🏆 Final Podium Prediction")
-                    driver_map = {}
-                    try:
-                        for year, race_data in historical_races.items():
-                            drivers_df = fetch_drivers(race_data["session_key"])
-                            for _, driver_row in drivers_df.iterrows():
-                                driver_num = str(int(driver_row["driver_number"]))
-                                if driver_num not in driver_map:
-                                    driver_map[driver_num] = {
-                                        "name": driver_row.get("name_acronym", f"DRV{driver_num}"),
-                                        "team": driver_row.get("team_name", "Unknown"),
-                                    }
-                    except:
-                        pass
-
-                    podium_df = predict_podium(simulated_df, driver_map)
+                    podium_df = predict_podium(simulated_df, driver_name_map)
                     if not podium_df.empty:
                         col1, col2, col3 = st.columns([1, 1, 1])
                         for idx, (col, row) in enumerate(zip([col1, col2, col3], podium_df.iterrows())):

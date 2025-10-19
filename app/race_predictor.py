@@ -20,14 +20,21 @@ def fetch_historical_austin_races(years=[2022, 2023, 2024, 2025]):
             if meetings.empty:
                 continue
 
-            # Find Austin race - check various possible field names
+            # Find Austin race - search by location first, then country
             austin = None
-            if "country_name" in meetings.columns:
-                austin = meetings[meetings["country_name"] == "USA"]
-            elif "country" in meetings.columns:
-                austin = meetings[meetings["country"] == "USA"]
-            elif "location" in meetings.columns:
-                austin = meetings[meetings["location"].str.contains("Austin", case=False, na=False)]
+            if "location" in meetings.columns:
+                austin = meetings[
+                    (meetings["location"].str.contains("Austin", case=False, na=False)) |
+                    (meetings["location"].str.contains("Circuit of Americas", case=False, na=False))
+                ]
+
+            if austin is None or austin.empty:
+                # Fallback: search by country
+                if "country_name" in meetings.columns:
+                    austin = meetings[meetings["country_name"].str.contains("United States", case=False, na=False)]
+                    # Filter to only Austin if multiple US races
+                    if not austin.empty and "location" in austin.columns:
+                        austin = austin[austin["location"].str.contains("Austin", case=False, na=False)]
 
             if austin is None or austin.empty:
                 continue
@@ -60,6 +67,7 @@ def fetch_historical_austin_races(years=[2022, 2023, 2024, 2025]):
 def build_perfect_lap_profile(historical_races):
     """
     Build a "perfect lap" profile from historical Austin races.
+    Weights recent years more heavily (2025 > 2024 > 2023).
     Returns dict: {driver_number: perfect_lap_time, best_lap_times, consistency}
     """
     if not historical_races:
@@ -67,8 +75,16 @@ def build_perfect_lap_profile(historical_races):
 
     driver_performances = {}
 
+    # Weight mapping: recent years weighted more heavily
+    year_weights = {
+        2023: 1.0,
+        2024: 2.0,
+        2025: 3.0,
+    }
+
     for year, race_data in historical_races.items():
         laps_df = race_data["laps"]
+        year_weight = year_weights.get(year, 1.0)
 
         # Filter valid laps (with duration, not pit out-laps on first pass)
         valid_laps = laps_df[laps_df["lap_duration"].notna()].copy()
@@ -79,7 +95,7 @@ def build_perfect_lap_profile(historical_races):
             if driver_num not in driver_performances:
                 driver_performances[driver_num] = {
                     "best_lap": float('inf'),
-                    "all_lap_times": [],
+                    "weighted_lap_times": [],
                     "years_raced": []
                 }
 
@@ -87,32 +103,36 @@ def build_perfect_lap_profile(historical_races):
             lap_times = driver_laps["lap_duration"].values
             best_lap = lap_times.min()
 
-            driver_performances[driver_num]["all_lap_times"].extend(lap_times)
+            # Add weighted lap times (more recent = higher weight)
+            driver_performances[driver_num]["weighted_lap_times"].extend(
+                [(t * year_weight) for t in lap_times]
+            )
             driver_performances[driver_num]["best_lap"] = min(
                 driver_performances[driver_num]["best_lap"],
                 best_lap
             )
             driver_performances[driver_num]["years_raced"].append(year)
 
-    # Calculate statistics per driver
+    # Calculate statistics per driver with weighted averages
     perfect_profile = {}
     for driver_num, perf in driver_performances.items():
-        lap_times = np.array(perf["all_lap_times"])
+        weighted_times = np.array(perf["weighted_lap_times"])
 
         perfect_profile[str(driver_num)] = {
             "best_lap": float(perf["best_lap"]),
-            "average_lap": float(np.mean(lap_times)),
-            "std_dev": float(np.std(lap_times)),
-            "median_lap": float(np.median(lap_times)),
+            "average_lap": float(np.mean(weighted_times)),
+            "std_dev": float(np.std(weighted_times)),
+            "median_lap": float(np.median(weighted_times)),
             "races_count": len(perf["years_raced"]),
         }
 
     return perfect_profile
 
 
-def generate_simulated_race(perfect_profile, num_laps=56):
+def generate_simulated_race(perfect_profile, driver_name_map=None, num_laps=56):
     """
     Generate a simulated race with perfect laps for each driver.
+    driver_name_map: dict mapping driver_number to {"name": "ABC", "team": "Team Name"}
     Returns DataFrame with simulated telemetry
     """
     if not perfect_profile:
@@ -123,6 +143,11 @@ def generate_simulated_race(perfect_profile, num_laps=56):
     for driver_num, profile in perfect_profile.items():
         best_lap = profile["best_lap"]
         std_dev = profile["std_dev"]
+
+        # Get driver name/acronym if available
+        driver_name = driver_num
+        if driver_name_map and driver_num in driver_name_map:
+            driver_name = driver_name_map[driver_num].get("name", driver_num)
 
         # Generate realistic lap times (best lap + random variance)
         for lap_num in range(1, num_laps + 1):
@@ -140,6 +165,7 @@ def generate_simulated_race(perfect_profile, num_laps=56):
 
             simulated_data.append({
                 "driver_number": driver_num,
+                "driver_name": driver_name,
                 "lap_number": lap_num,
                 "lap_duration": lap_time,
                 "simulated": True

@@ -81,14 +81,17 @@ def create_race_visualization(positions_df, selected_drivers, lap_number=1):
         color = position_colors.get(position, f'hsl({position * 10}, 70%, 50%)')
         lap_time = row["lap_time"]
 
+        # Use driver_name if available, otherwise use number
+        driver_display = row.get("driver_name", driver_num)
+
         fig.add_trace(go.Scatter(
             x=[car_x], y=[car_y],
             mode='markers+text',
             marker=dict(size=15, color=color),
-            text=[f"{driver_num}<br>P{position}<br>{lap_time:.2f}s"],
+            text=[f"{driver_display}<br>P{position}<br>{lap_time:.2f}s"],
             textposition="top center",
-            name=f"Driver {driver_num}",
-            hovertemplate=f"<b>Driver {driver_num}</b><br>Position: P{position}<br>Lap Time: {lap_time:.2f}s<extra></extra>"
+            name=f"Driver {driver_display}",
+            hovertemplate=f"<b>{driver_display}</b><br>Position: P{position}<br>Lap Time: {lap_time:.2f}s<extra></extra>"
         ))
 
     fig.update_layout(
@@ -112,8 +115,18 @@ def create_leaderboard(positions_df, lap_number):
     lap_data = positions_df[positions_df["lap_number"] == lap_number].copy()
     lap_data = lap_data.sort_values("position")
 
-    leaderboard = lap_data[["position", "driver_number", "lap_time"]].copy()
-    leaderboard.columns = ["Position", "Driver #", "Lap Time (s)"]
+    # Use driver_name if available, otherwise driver_number
+    driver_display = []
+    for _, row in lap_data.iterrows():
+        if "driver_name" in row and pd.notna(row["driver_name"]):
+            driver_display.append(row["driver_name"])
+        else:
+            driver_display.append(str(row["driver_number"]))
+
+    leaderboard = lap_data[["position", "lap_time"]].copy()
+    leaderboard["Driver"] = driver_display
+    leaderboard.columns = ["Position", "Lap Time (s)", "Driver"]
+    leaderboard = leaderboard[["Position", "Driver", "Lap Time (s)"]]
     leaderboard["Lap Time (s)"] = leaderboard["Lap Time (s)"].apply(lambda x: f"{x:.3f}")
 
     return leaderboard
@@ -129,11 +142,17 @@ def create_speed_telemetry(simulated_df, selected_drivers):
         driver_data = simulated_df[simulated_df["driver_number"] == driver_num].copy()
         driver_data = driver_data.sort_values("lap_number")
 
+        # Use driver_name if available, otherwise driver_number
+        if not driver_data.empty and "driver_name" in driver_data.columns:
+            driver_display = driver_data.iloc[0].get("driver_name", driver_num)
+        else:
+            driver_display = driver_num
+
         fig.add_trace(go.Scatter(
             x=driver_data["lap_number"],
             y=driver_data["lap_duration"],
             mode='lines+markers',
-            name=f"Driver {driver_num}",
+            name=driver_display,
             hovertemplate="Lap %{x}<br>Time: %{y:.3f}s<extra></extra>"
         ))
 
