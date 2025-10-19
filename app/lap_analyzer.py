@@ -59,11 +59,11 @@ Lap Data (first 15 laps):
     try:
         model = genai.GenerativeModel("gemini-2.5-flash")
 
-        # Per-lap analysis - analyze all laps
+        # Per-lap analysis - analyze only first lap
         lap_analyses = []
 
-        # Analyze all laps
-        for lap in lap_summary:
+        # Analyze only the first lap
+        for lap in lap_summary[:1]:
             prompt = f"""{context}
 
 Analyze lap {lap['lap_number']} for {driver_name}:
