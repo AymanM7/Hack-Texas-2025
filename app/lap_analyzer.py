@@ -82,7 +82,7 @@ def detect_anomalies(lap_df: pd.DataFrame) -> str:
     return "\n".join(anomalies) if anomalies else "No significant anomalies detected."
 
 
-def analyze_driver_laps(driver_number: str, driver_name: str, lap_df: pd.DataFrame) -> dict:
+def analyze_driver_laps(driver_number: str, driver_name: str, lap_df: pd.DataFrame, final_position: str = None) -> dict:
     """
     Analyze a driver's lap performance using Gemini API.
 
@@ -90,6 +90,7 @@ def analyze_driver_laps(driver_number: str, driver_name: str, lap_df: pd.DataFra
         driver_number (str): Driver number
         driver_name (str): Driver name/acronym
         lap_df (pd.DataFrame): Lap data for the driver (should be pre-filtered)
+        final_position (str): Final podium position (e.g., "1st", "2nd", "3rd", "DNF")
 
     Returns:
         dict: Contains lap_analyses (list of per-lap analysis) and overall_feedback
@@ -123,14 +124,23 @@ def analyze_driver_laps(driver_number: str, driver_name: str, lap_df: pd.DataFra
 
     # Build context for Gemini
     lap_data_text = format_lap_data_for_prompt(lap_summary)
+
+    # Convert statistics to English format
+    best_lap_english = format_lap_time_english(lap_df["lap_duration"].min()) if not lap_df["lap_duration"].empty else "N/A"
+    worst_lap_english = format_lap_time_english(lap_df["lap_duration"].max()) if not lap_df["lap_duration"].empty else "N/A"
+    avg_lap_english = format_lap_time_english(lap_df["lap_duration"].mean()) if not lap_df["lap_duration"].empty else "N/A"
+
+    # Build position context
+    position_context = f"\nFinal Position: {final_position}" if final_position else ""
+
     context = f"""
 Driver: {driver_name} (#{driver_number})
-Total Laps Completed: {len(lap_summary)}
+Total Laps Completed: {len(lap_summary)}{position_context}
 
 PERFORMANCE STATISTICS:
-- Best Lap: {stats.get('best_lap', 'N/A')}
-- Worst Lap: {stats.get('worst_lap', 'N/A')}
-- Average Lap: {stats.get('average_lap', 'N/A')}
+- Best Lap: {best_lap_english}
+- Worst Lap: {worst_lap_english}
+- Average Lap: {avg_lap_english}
 - Consistency (Std Dev): {stats.get('std_dev', 'N/A')}
 
 PIT STOP INFORMATION:
@@ -171,14 +181,15 @@ Brief analysis (2 sentences max) of what happened this lap."""
                 st.warning(f"Lap {lap['lap_number']} analysis failed: {str(lap_error)}")
                 continue
 
-        # Overall race feedback
+        # Overall race feedback - commentating style
+        position_mention = f" finishing in {final_position} place" if final_position else ""
         overall_prompt = f"""{context}
 
-Provide brief overall feedback (3-4 sentences) for {driver_name}'s race. Consider:
-- Consistency: How stable were their lap times? Account for pit stops (which naturally slow laps)
-- Special circumstances: If there are anomalies like missing laps or safety car periods, mention them
-- Performance: Did they perform well given the circumstances? Crashes or DNFs should be acknowledged
-- Strategy: Any notable strategic moves or issues?"""
+Provide an exciting F1 race commentary analysis (3-4 sentences) for {driver_name}'s performance{position_mention}. Use commentating tone like "And there's {driver_name}..." or "What a performance..." Highlight:
+- Racing pace and consistency with dramatic flair
+- Any incidents, pit stops, or strategic moments
+- Performance relative to expectations{' - their final podium placement' if final_position else ''}
+- Stand-out moments or driving highlights"""
 
         overall_response = model.generate_content(overall_prompt)
 
@@ -205,6 +216,22 @@ def format_lap_time_for_analysis(seconds: float) -> str:
     sec = int(seconds % 60)
     millis = int((seconds - int(seconds)) * 1000)
     return f"{minutes:02}:{sec:02}.{millis:03}"
+
+
+def format_lap_time_english(seconds: float) -> str:
+    """Format lap time in plain English (e.g., '1 min 17 seconds')."""
+    if pd.isna(seconds) or seconds is None:
+        return "DNF/Crashed"
+
+    seconds = float(seconds)
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    millis = int((seconds - int(seconds)) * 1000)
+
+    if minutes > 0:
+        return f"{minutes} min {secs} seconds"
+    else:
+        return f"{secs}.{millis//10} seconds"
 
 
 def format_lap_data_for_prompt(lap_summary: list) -> str:
@@ -267,6 +294,11 @@ def analyze_single_lap(driver_number: str, driver_name: str, lap_df: pd.DataFram
         pit_context = build_pit_stop_context(lap_df)
         anomalies = detect_anomalies(lap_df)
 
+        # Convert statistics to English format
+        best_lap_english = format_lap_time_english(lap_df["lap_duration"].min()) if not lap_df["lap_duration"].empty else "N/A"
+        worst_lap_english = format_lap_time_english(lap_df["lap_duration"].max()) if not lap_df["lap_duration"].empty else "N/A"
+        avg_lap_english = format_lap_time_english(lap_df["lap_duration"].mean()) if not lap_df["lap_duration"].empty else "N/A"
+
         lap_data_text = format_lap_data_for_prompt(all_laps_summary)
 
         context = f"""
@@ -274,9 +306,9 @@ Driver: {driver_name} (#{driver_number})
 Total Laps: {len(all_laps_summary)}
 
 PERFORMANCE STATISTICS:
-- Best Lap: {stats.get('best_lap', 'N/A')}
-- Worst Lap: {stats.get('worst_lap', 'N/A')}
-- Average Lap: {stats.get('average_lap', 'N/A')}
+- Best Lap: {best_lap_english}
+- Worst Lap: {worst_lap_english}
+- Average Lap: {avg_lap_english}
 - Consistency (Std Dev): {stats.get('std_dev', 'N/A')}
 
 PIT STOP INFORMATION:
@@ -289,16 +321,19 @@ Lap Data (for reference):
 {lap_data_text}
 """
 
+        # Format current lap time in English
+        current_lap_time_english = format_lap_time_english(lap_data["lap_duration"]) if pd.notna(lap_data["lap_duration"]) else "DNF/Crashed"
+
         prompt = f"""{context}
 
 Analyze lap {lap_number} for {driver_name}:
-- Lap Time: {lap_time_str}{pit_flag}
-- Position in race: Lap {lap_number} of {len(all_laps_summary)}
+- Lap Time: {current_lap_time_english}{pit_flag}
+- Current Position in Race: Lap {lap_number} of {len(all_laps_summary)}
 
 Detailed analysis (3-4 sentences) of what happened this lap, including:
 - How this lap compares to their average performance (considering pit stops and anomalies)
 - Any notable issues or strengths (e.g., if it was a pit out-lap, safety car lap, etc.)
-- Performance trend relative to other laps"""
+- Current lap position and performance trend relative to other laps"""
 
         response = model.generate_content(prompt)
 
