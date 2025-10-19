@@ -22,6 +22,17 @@ from app.lap_analyzer import (
     analyze_driver_laps,
     create_timestamp_link
 )
+from app.race_predictor import (
+    fetch_historical_austin_races,
+    build_perfect_lap_profile,
+    generate_simulated_race,
+    calculate_race_positions
+)
+from app.race_simulator import (
+    create_race_visualization,
+    create_leaderboard,
+    create_speed_telemetry
+)
 
 st.set_page_config(page_title="F1 Strategy Dashboard", layout="wide")
 
@@ -196,6 +207,88 @@ with st.expander(f"🤖 Simulation Visualizer - AI Lap Analysis for {selected_se
             st.info("No drivers available in this session.")
     else:
         st.warning("No lap data available for analysis. Please ensure lap data is loaded above.")
+
+# Race Predictor & Simulator
+st.markdown("---")
+with st.expander(f"🎮 Race Predictor - Simulated Race for {selected_country} {selected_year}", expanded=False):
+    st.markdown("**Predictive race simulation based on historical Austin F1 data**")
+
+    try:
+        with st.spinner("Loading historical Austin race data..."):
+            # Fetch historical data
+            historical_races = fetch_historical_austin_races([2022, 2023, 2024, 2025])
+
+        if historical_races:
+            with st.spinner("Building perfect lap profile..."):
+                # Build profile
+                perfect_profile = build_perfect_lap_profile(historical_races)
+
+                # Generate simulated race
+                simulated_df = generate_simulated_race(perfect_profile, num_laps=56)
+                positions_df = calculate_race_positions(simulated_df)
+
+            if not simulated_df.empty:
+                # Interactive Controls
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    playback_speed = st.slider("Playback Speed", 0.25, 4.0, 1.0, 0.25)
+
+                with col2:
+                    current_lap = st.slider("Select Lap", 1, 56, 20)
+
+                with col3:
+                    st.write("")  # Spacing
+
+                # Driver selection
+                all_drivers = sorted(simulated_df["driver_number"].unique())
+                selected_drivers_sim = st.multiselect(
+                    "Select drivers to display",
+                    [str(d) for d in all_drivers],
+                    default=[str(all_drivers[0]), str(all_drivers[1])] if len(all_drivers) > 1 else [str(all_drivers[0])]
+                )
+
+                if selected_drivers_sim:
+                    # Show race visualization
+                    race_fig = create_race_visualization(
+                        positions_df,
+                        selected_drivers_sim,
+                        lap_number=current_lap
+                    )
+                    st.plotly_chart(race_fig, use_container_width=True)
+
+                    # Show leaderboard
+                    col1, col2 = st.columns([2, 1])
+
+                    with col1:
+                        st.markdown(f"#### Leaderboard - Lap {current_lap}")
+                        leaderboard = create_leaderboard(positions_df, current_lap)
+                        st.dataframe(leaderboard, hide_index=True)
+
+                    with col2:
+                        # Quick stats
+                        lap_data = positions_df[positions_df["lap_number"] == current_lap]
+                        if not lap_data.empty:
+                            fastest_lap = lap_data.loc[lap_data["lap_time"].idxmin()]
+                            st.metric("Fastest Lap", f"{fastest_lap['driver_number']}")
+                            st.metric("Time", f"{fastest_lap['lap_time']:.3f}s")
+
+                    # Telemetry chart
+                    st.markdown("#### Lap Time Progression")
+                    telemetry_fig = create_speed_telemetry(
+                        simulated_df,
+                        selected_drivers_sim
+                    )
+                    st.plotly_chart(telemetry_fig, use_container_width=True)
+                else:
+                    st.info("Select at least one driver to visualize the race.")
+            else:
+                st.error("Failed to generate simulated race data.")
+        else:
+            st.warning("No historical Austin race data found. Make sure years 2022-2025 have available data.")
+
+    except Exception as e:
+        st.error(f"Error loading race predictor: {str(e)}")
 
 if processed_df.empty:
     st.info("Lap data is not available for this session.")
