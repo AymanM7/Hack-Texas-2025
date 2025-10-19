@@ -256,21 +256,26 @@ def get_tire_strategy_summary(historical_races, selected_drivers=None):
 def calculate_race_positions(simulated_df):
     """
     Calculate position changes throughout the simulated race.
-    Returns DataFrame with position info per lap
+    Returns DataFrame with position info per lap, including driver_name if available
     """
     positions = []
 
-    for lap in simulated_df["lap_number"].unique():
+    for lap in sorted(simulated_df["lap_number"].unique()):
         lap_data = simulated_df[simulated_df["lap_number"] == lap].copy()
         lap_data = lap_data.sort_values("lap_duration")
         lap_data["position"] = range(1, len(lap_data) + 1)
 
         for _, row in lap_data.iterrows():
-            positions.append({
+            pos_dict = {
                 "lap_number": lap,
                 "driver_number": row["driver_number"],
                 "position": row["position"],
                 "lap_time": row["lap_duration"]
-            })
+            }
+            # Include driver_name if it exists
+            if "driver_name" in row:
+                pos_dict["driver_name"] = row["driver_name"]
+
+            positions.append(pos_dict)
 
     return pd.DataFrame(positions)
