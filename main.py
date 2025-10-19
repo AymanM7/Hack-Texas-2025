@@ -20,7 +20,6 @@ from app.visualizer import (
 )
 from app.lap_analyzer import (
     analyze_driver_laps,
-    analyze_single_lap,
     create_timestamp_link
 )
 from app.race_predictor import (
@@ -172,71 +171,21 @@ with st.expander(f"🤖 Simulation Visualizer - AI Lap Analysis for {selected_se
                     st.markdown(f"### 📊 Overall Race Feedback - {selected_driver}")
                     st.info(analysis_results["overall_feedback"])
 
-                    # Lap Selection Dropdown
-                    st.markdown(f"### 📈 Lap Analysis - {selected_driver}")
+                    # Display Lap-by-Lap Analysis
+                    st.markdown(f"### 📈 Lap-by-Lap Analysis - {selected_driver}")
 
-                    # Get all available lap numbers from driver's actual lap data
-                    all_lap_numbers = sorted(driver_laps["lap_number"].unique())
+                    if analysis_results["lap_analyses"]:
+                        # Create tabs for each lap or use expanders
+                        for lap_analysis in analysis_results["lap_analyses"]:
+                            lap_num = lap_analysis["lap_number"]
+                            lap_time = lap_analysis["lap_time"]
+                            timestamp_link = create_timestamp_link(lap_num, selected_session_key)
 
-                    if all_lap_numbers:
-                        # Create lap options: "Comprehensive Report" + all individual laps
-                        lap_options = ["📋 Comprehensive Report"] + [f"Lap {int(ln)}" for ln in all_lap_numbers]
-                        selected_lap_option = st.selectbox(
-                            "Select lap to analyze:",
-                            lap_options,
-                            key="lap_selector"
-                        )
-
-                        if selected_lap_option == "📋 Comprehensive Report":
-                            # Show pre-analyzed laps in expanders
-                            st.markdown("**Pre-analyzed Laps:**")
-                            if analysis_results["lap_analyses"]:
-                                for lap_analysis in analysis_results["lap_analyses"]:
-                                    lap_num = lap_analysis["lap_number"]
-                                    lap_time = lap_analysis["lap_time"]
-                                    timestamp_link = create_timestamp_link(lap_num, selected_session_key)
-
-                                    with st.expander(
-                                        f"Lap {lap_num} | {lap_time} | 🔗 {timestamp_link}",
-                                        expanded=False
-                                    ):
-                                        st.write(lap_analysis["analysis"])
-
-                                        # Show lap metrics
-                                        lap_row = driver_laps[driver_laps["lap_number"] == lap_num]
-                                        if not lap_row.empty:
-                                            col1, col2, col3 = st.columns(3)
-                                            with col1:
-                                                st.metric("Lap Time", lap_time)
-                                            with col2:
-                                                pit_status = "🔧 Pit Out" if lap_row.iloc[0].get("is_pit_out_lap") else "Normal"
-                                                st.metric("Status", pit_status)
-                                            with col3:
-                                                st.metric("Lap #", lap_num)
-                            else:
-                                st.info("No pre-analyzed laps. Select a specific lap to analyze it.")
-                        else:
-                            # Show specific lap - generate analysis at runtime
-                            selected_lap_num = int(selected_lap_option.split("Lap ")[1])
-
-                            with st.spinner(f"🔍 Analyzing Lap {selected_lap_num}..."):
-                                lap_result = analyze_single_lap(
-                                    driver_number=driver_number,
-                                    driver_name=selected_driver,
-                                    lap_df=driver_laps,
-                                    lap_number=selected_lap_num
-                                )
-
-                            if lap_result["error"]:
-                                st.error(f"❌ {lap_result['error']}")
-                            else:
-                                lap_num = lap_result["lap_number"]
-                                lap_time = lap_result["lap_time"]
-                                timestamp_link = create_timestamp_link(lap_num, selected_session_key)
-
-                                st.markdown(f"#### Lap {lap_num} - {lap_time}")
-                                st.markdown(f"[🔗 View on video timeline]({timestamp_link})")
-                                st.markdown(lap_result["analysis"])
+                            with st.expander(
+                                f"Lap {lap_num} | {lap_time} | 🔗 {timestamp_link}",
+                                expanded=False
+                            ):
+                                st.write(lap_analysis["analysis"])
 
                                 # Show lap metrics
                                 lap_row = driver_laps[driver_laps["lap_number"] == lap_num]
@@ -250,7 +199,7 @@ with st.expander(f"🤖 Simulation Visualizer - AI Lap Analysis for {selected_se
                                     with col3:
                                         st.metric("Lap #", lap_num)
                     else:
-                        st.warning("No lap data available for analysis.")
+                        st.warning("No lap analysis available.")
                 else:
                     st.warning(f"No lap data found for {selected_driver}")
         else:

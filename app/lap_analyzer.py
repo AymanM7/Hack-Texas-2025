@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import google.generativeai as genai
+from scipy import stats
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -22,6 +23,9 @@ def calculate_lap_statistics(lap_df: pd.DataFrame) -> dict:
         return {}
 
     lap_times = lap_df["lap_duration"].dropna()
+    q_low = lap_df["lap_duration"].quantile(0.01)
+    q_hi  = lap_df["lap_duration"].quantile(0.90)
+    lap_times = lap_times[(lap_times < q_hi) & (lap_times > q_low)]
     if len(lap_times) == 0:
         return {}
 
