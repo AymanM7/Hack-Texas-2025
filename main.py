@@ -171,21 +171,56 @@ with st.expander(f"🤖 Simulation Visualizer - AI Lap Analysis for {selected_se
                     st.markdown(f"### 📊 Overall Race Feedback - {selected_driver}")
                     st.info(analysis_results["overall_feedback"])
 
-                    # Display Lap-by-Lap Analysis
-                    st.markdown(f"### 📈 Lap-by-Lap Analysis - {selected_driver}")
+                    # Lap Selection Dropdown
+                    st.markdown(f"### 📈 Lap Analysis - {selected_driver}")
 
                     if analysis_results["lap_analyses"]:
-                        # Create tabs for each lap or use expanders
-                        for lap_analysis in analysis_results["lap_analyses"]:
-                            lap_num = lap_analysis["lap_number"]
-                            lap_time = lap_analysis["lap_time"]
-                            timestamp_link = create_timestamp_link(lap_num, selected_session_key)
+                        # Create lap options: "Comprehensive Report" + individual laps
+                        lap_options = ["📋 Comprehensive Report"] + [f"Lap {la['lap_number']}" for la in analysis_results["lap_analyses"]]
+                        selected_lap_option = st.selectbox(
+                            "Select lap to analyze:",
+                            lap_options,
+                            key="lap_selector"
+                        )
 
-                            with st.expander(
-                                f"Lap {lap_num} | {lap_time} | 🔗 {timestamp_link}",
-                                expanded=False
-                            ):
-                                st.write(lap_analysis["analysis"])
+                        if selected_lap_option == "📋 Comprehensive Report":
+                            # Show all laps in expanders
+                            st.markdown("**All Laps:**")
+                            for lap_analysis in analysis_results["lap_analyses"]:
+                                lap_num = lap_analysis["lap_number"]
+                                lap_time = lap_analysis["lap_time"]
+                                timestamp_link = create_timestamp_link(lap_num, selected_session_key)
+
+                                with st.expander(
+                                    f"Lap {lap_num} | {lap_time} | 🔗 {timestamp_link}",
+                                    expanded=False
+                                ):
+                                    st.write(lap_analysis["analysis"])
+
+                                    # Show lap metrics
+                                    lap_row = driver_laps[driver_laps["lap_number"] == lap_num]
+                                    if not lap_row.empty:
+                                        col1, col2, col3 = st.columns(3)
+                                        with col1:
+                                            st.metric("Lap Time", lap_time)
+                                        with col2:
+                                            pit_status = "🔧 Pit Out" if lap_row.iloc[0].get("is_pit_out_lap") else "Normal"
+                                            st.metric("Status", pit_status)
+                                        with col3:
+                                            st.metric("Lap #", lap_num)
+                        else:
+                            # Show specific lap
+                            selected_lap_num = int(selected_lap_option.split("Lap ")[1])
+                            lap_analysis = next((la for la in analysis_results["lap_analyses"] if la["lap_number"] == selected_lap_num), None)
+
+                            if lap_analysis:
+                                lap_num = lap_analysis["lap_number"]
+                                lap_time = lap_analysis["lap_time"]
+                                timestamp_link = create_timestamp_link(lap_num, selected_session_key)
+
+                                st.markdown(f"#### Lap {lap_num} - {lap_time}")
+                                st.markdown(f"[🔗 View on video timeline]({timestamp_link})")
+                                st.markdown(lap_analysis["analysis"])
 
                                 # Show lap metrics
                                 lap_row = driver_laps[driver_laps["lap_number"] == lap_num]
