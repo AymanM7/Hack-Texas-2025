@@ -91,6 +91,11 @@ def fetch_drivers(session_key):
     # Provides driver metadata such as name, number, and team color
     return fetch_data("drivers", {"session_key": session_key})
 
+@st.cache_data
+def fetch_locations(session_key):
+    # Provides location metadata such as track coordinates, country, and city
+    return fetch_data("location", {"session_key": session_key})
+
 
 @st.cache_data
 def fetch_incidents(session_key):

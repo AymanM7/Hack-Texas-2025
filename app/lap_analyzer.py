@@ -3,7 +3,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import google.generativeai as genai
-from scipy import stats
 from dotenv import load_dotenv
 
 load_dotenv()
