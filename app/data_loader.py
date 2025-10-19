@@ -90,3 +90,12 @@ def fetch_pit_stop(session_key):
 def fetch_drivers(session_key):
     # Provides driver metadata such as name, number, and team color
     return fetch_data("drivers", {"session_key": session_key})
+
+
+@st.cache_data
+def fetch_incidents(session_key):
+    # Fetches incident data (crashes, collisions, DQ, etc)
+    try:
+        return fetch_data("incidents", {"session_key": session_key})
+    except:
+        return pd.DataFrame()
