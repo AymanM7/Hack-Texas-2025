@@ -193,30 +193,35 @@ def get_driver_names(session_key):
 def predict_podium(simulated_df, driver_names):
     """
     Predict final podium based on simulated race.
+    Ranks drivers by total cumulative race time (sum of all laps).
     Returns DataFrame with top 3 finishers and stats.
     """
     if simulated_df.empty:
         return pd.DataFrame()
 
-    # Get final race positions (last lap)
-    final_lap = simulated_df["lap_number"].max()
-    final_results = simulated_df[simulated_df["lap_number"] == final_lap].copy()
-    final_results = final_results.sort_values("lap_duration")
+    # Calculate total race time for each driver (sum of all lap durations)
+    total_times = simulated_df.groupby("driver_number")["lap_duration"].sum().reset_index()
+    total_times.columns = ["driver_number", "total_time"]
+    total_times = total_times.sort_values("total_time")
 
     # Get top 3
     podium = []
-    for idx, (position, (_, row)) in enumerate(zip(range(1, 4), final_results.head(3).iterrows()), 1):
-        driver_num = str(row["driver_number"])
+    for idx, (_, row) in enumerate(total_times.head(3).iterrows(), 1):
+        driver_num = str(int(row["driver_number"]))
         driver_info = driver_names.get(driver_num, {})
-        best_lap = simulated_df[simulated_df["driver_number"] == driver_num]["lap_duration"].min()
+
+        # Get driver's best lap and final lap time
+        driver_laps = simulated_df[simulated_df["driver_number"] == row["driver_number"]]
+        best_lap = driver_laps["lap_duration"].min()
+        final_lap_time = driver_laps[driver_laps["lap_number"] == driver_laps["lap_number"].max()]["lap_duration"].values[0]
 
         podium.append({
             "Position": f"🥇 P{idx}" if idx == 1 else f"🥈 P{idx}" if idx == 2 else f"🥉 P{idx}",
             "Driver #": driver_num,
             "Driver": driver_info.get("name", f"DRV{driver_num}"),
             "Team": driver_info.get("team", "Unknown"),
-            "Best Lap": f"{best_lap:.3f}s",
-            "Final Lap Time": f"{row['lap_duration']:.3f}s"
+            "Total Time": f"{row['total_time']:.1f}s",
+            "Best Lap": f"{best_lap:.3f}s"
         })
 
     return pd.DataFrame(podium)
