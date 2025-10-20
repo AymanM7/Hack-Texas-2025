@@ -1,4 +1,4 @@
-# Formula 1 Interactive Dashboard & Race Animator
+# (TelemetryX2) A Formula 1 Interactive Dashboard & Race Animator
 
 A comprehensive Formula 1 analytics platform combining real-time race data visualization, AI-powered lap analysis, and interactive race animation. Built with Streamlit, FastAPI, OpenF1 API, FastF1, and Google Gemini AI.
 
@@ -25,6 +25,9 @@ A comprehensive Formula 1 analytics platform combining real-time race data visua
 - **Data Processing**: Pandas, NumPy
 - **Visualization**: Plotly
 - **Voice**: ElevenLabs Text-to-Speech (optional)
+
+  ## Link to Devpost Sumbission + Demo
+  https://devpost.com/software/hacktx-5gti1y?ref_content=user-portfolio&ref_feature=in_progress
 
 ## 📁 Project Structure
 
@@ -236,8 +239,10 @@ MIT License - See LICENSE file for details
 - [Google Gemini](https://ai.google.dev/) for AI-powered analysis
 - Formula 1 for the amazing sport
 
+
 ---
 
 **Built with ❤️ for F1 fans and data enthusiasts**
 
-Repository: [https://github.com/Garyxue213/F1](https://github.com/Garyxue213/F1)
+
+
