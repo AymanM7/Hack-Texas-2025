@@ -52,8 +52,8 @@ F1/
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/Garyxue213/F1.git
-cd F1
+https://github.com/AymanM7/Hack-Texas-2025
+cd Hack-Texas-2025
 ```
 
 ### 2. Create Virtual Environment
@@ -243,6 +243,7 @@ MIT License - See LICENSE file for details
 ---
 
 **Built with ❤️ for F1 fans and data enthusiasts**
+
 
 
 
