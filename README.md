@@ -26,7 +26,7 @@ A comprehensive Formula 1 analytics platform combining real-time race data visua
 - **Visualization**: Plotly
 - **Voice**: ElevenLabs Text-to-Speech (optional)
 
-  ## Link to Devpost Sumbission + Demo
+  ## Link to Devpost Submission + Demo
   https://devpost.com/software/hacktx-5gti1y?ref_content=user-portfolio&ref_feature=in_progress
 
 ## 📁 Project Structure
@@ -243,6 +243,7 @@ MIT License - See LICENSE file for details
 ---
 
 **Built with ❤️ for F1 fans and data enthusiasts**
+
 
 
 
